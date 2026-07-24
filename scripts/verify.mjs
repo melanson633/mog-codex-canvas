@@ -4,14 +4,18 @@
  *   1. headless engine: formula compute, save, reopen, read-back, screenshot
  *   2. dev server: runtime assets on both wasm URL shapes
  *   3. file bridge: config / read / write / validate
+ *   4. startup isolation: the entry module pulls in no @mog-sdk code
+ *   5. the smoke test can find a browser to drive
  *
  *   node scripts/verify.mjs
  */
+import { existsSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createWorkbook } from '@mog-sdk/sdk';
 import { createServer } from 'vite';
+import { resolveBrowserExecutable } from './browser-executable.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = resolve(projectRoot, 'workbooks/.verify');
@@ -110,8 +114,37 @@ try {
     Array.isArray(report.sheetNames) && report.sheets?.[0]?.summary?.includes('Used Range'),
     report.sheetNames?.join(','),
   );
+
+  // 4. Everything the entry module imports is evaluated before any adapter
+  // resolution runs, so an @mog-sdk import there turns a missing package or a
+  // renamed export into a blank page instead of the unavailable adapter's
+  // explanation. The embed's stylesheet lives in the Mog adapter for that reason.
+  const entry = await server.transformRequest('/src/main.tsx');
+  check(
+    'startup entry imports nothing from @mog-sdk',
+    !entry.code.includes('@mog-sdk'),
+    entry.code.match(/\S*@mog-sdk\S*/)?.[0] ?? '',
+  );
+
+  const adapter = await server.transformRequest('/src/adapters/mog-embed-adapter.ts');
+  check(
+    'Mog adapter loads the embed stylesheet itself',
+    /styles\.css/.test(adapter.code),
+  );
 } finally {
   await server.close();
+}
+
+// 5. The smoke lane's browser. Resolution only — nothing is launched here.
+try {
+  const installed = resolveBrowserExecutable();
+  check('smoke test resolves an installed browser', existsSync(installed), installed);
+  // Guards the regression this replaced: launching the first candidate whether
+  // or not it is the one that exists on this machine.
+  const picked = resolveBrowserExecutable(['C:/not-installed/browser.exe', installed]);
+  check('browser resolution skips candidates that are not installed', picked === installed, picked);
+} catch (error) {
+  check('smoke test resolves an installed browser', false, error.message);
 }
 
 await rm(scratch, { recursive: true, force: true });

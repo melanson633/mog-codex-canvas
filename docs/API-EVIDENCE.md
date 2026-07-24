@@ -80,30 +80,83 @@ this project follows it closely.
 - **`assets.workerUrl` is accepted but unnecessary.** Upstream's VS Code build
   points it at a `media/worker.js` that its own build script never emits. The
   field is optional in the type; this project omits it.
-- **Bare `@mog-sdk/sdk` resolves to the browser WASM build** under TypeScript's
-  `bundler` module resolution, whose `createWorkbook` takes bytes and not a file
-  path. Server-side code must import `@mog-sdk/sdk/node`.
+- **`@mog-sdk/sdk` resolves differently for TypeScript than for Node.** Its
+  `exports` map has a `node` condition (`dist/index.js`, native bindings, file
+  paths) and a `default`/`browser` condition (`dist/wasm.js`, whose
+  `createWorkbook` takes bytes, not a path). Node picks the `node` condition on
+  its own, so the `.mjs` scripts import the bare specifier and get the native
+  build. TypeScript under `moduleResolution: bundler` picks the browser types, so
+  the one server-side `.ts` file — `server/file-bridge.ts` — imports
+  `@mog-sdk/sdk/node` explicitly. Both forms are in the tree on purpose; neither
+  is a workaround for the other.
+- **The embed's stylesheet is a startup hazard.** `@mog-sdk/spreadsheet-app/styles.css`
+  is a separate export from the module, and a static import of it in the entry
+  file is evaluated before any adapter probe runs — so a package that fails to
+  resolve takes the whole page down before `unavailable-adapter.ts` can report
+  why. It is therefore loaded from `src/adapters/mog-embed-adapter.ts`, after the
+  embed itself has resolved, and `scripts/verify.mjs` asserts that the entry
+  module's transformed output contains no `@mog-sdk` reference at all.
 
 ## The actual gap: Codex integration
 
-**This app cannot be embedded into the Codex desktop app, and this project does
-not attempt to.**
+**This project is not a Codex integration and does not attempt to be one.** That
+is a scoping decision, not a claim that Codex has no UI surface — an earlier
+version of this document asserted the latter, and it was wrong.
 
-There is no public, documented extension/panel/webview host API for the Codex
-desktop app that a third party could render a custom UI into. The available Mog↔
-Codex integration is the opposite direction: `plugins/mog` in the Mog repo is a
-*Codex plugin* that exposes Mog to Codex as MCP tools (e.g. `mog_browser_start`),
-driving a browser-visible Mog session. That is Codex calling Mog, not Codex
-hosting a Mog panel.
+Custom UI surfaces for Codex plugins/MCP apps do exist, and the evidence is on
+this machine. The OpenAI-curated `data-analytics` plugin in the local plugin
+cache:
 
-Consequences for this project:
+```
+~/.codex/plugins/cache/openai-curated-remote/data-analytics/0.2.8-13ceeea1f599/
+  mcp/server.cjs
+  skills/build-dashboard/specifications/mcp-artifact-dashboard.md
+```
+
+Its dashboard specification describes an MCP app rendering its own UI through
+`render_artifact` / `validate_artifact`, in an artifact window, explicitly styled
+against Codex chrome tokens (`--color-token-main-surface-primary`,
+`--color-token-dropdown-background`, and a `#181818` Codex dark fallback). So a
+plugin *can* put custom UI in front of the user.
+
+What that does **not** establish, and what this project therefore does not claim:
+
+- That an artifact/MCP-app surface will host a ~41 MB WASM compute core plus font
+  fetches from a host-supplied origin. Untested here.
+- That a Vite dev server becomes such a surface by being open beside Codex. It
+  does not. The disk access and asset routing here are dev-server middleware
+  (`server/file-bridge.ts`, `server/mog-assets.ts`) and there is no `build`
+  output, so there is nothing a plugin host could load today. Shipping this as a
+  plugin means writing an MCP server and a host-served runtime — a different
+  program.
+
+The Mog↔Codex integration that already exists runs the opposite direction:
+`plugins/mog` in the Mog repo is a *Codex plugin* exposing Mog to Codex as MCP
+tools (e.g. `mog_browser_start`), driving a browser-visible Mog session. That is
+Codex calling Mog, not Codex hosting this panel.
+
+Consequences for this project as it stands:
 
 - It is a **standalone localhost app** you place beside Codex, sized for a narrow
-  side panel. It is not "inside" Codex in any sense.
+  side panel. It is not "inside" Codex.
 - Window management is the OS's job (snap it next to Codex), not the app's.
 - Codex and this app share state only through **the file on disk**. That is why
   the file bridge keeps a `.bak` of the previous save and why `Verify` re-reads
   the saved file with the headless engine.
+
+## Capture limits
+
+Two screenshot paths exist here and neither one is a picture of "the workbook":
+
+- **Engine capture** — the app's `Screenshot` button and
+  `scripts/headless-edit.mjs` call `captureScreenshot` for a named range
+  (`A1:H30` and `A1:D6` respectively). Rendered by the engine, so window size and
+  scroll position do not affect it, but nothing outside that range is captured.
+- **Page capture** — `scripts/browser-smoke.mjs` takes a CDP screenshot of the
+  browser viewport, which it fixes at 520x900 (the side-panel shape this app
+  targets). It shows only what fits there. That same fixed geometry is why the
+  smoke test's grid click is expressed in raw pixels: at another window size it
+  selects a different cell, so the smoke lane says nothing about wider layouts.
 
 ## Not exercised
 

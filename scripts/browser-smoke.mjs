@@ -1,9 +1,14 @@
 /**
  * Browser smoke test: does the Mog canvas actually mount and render?
  *
- * Launches an isolated headless Chrome against a already-running dev server,
- * waits for the embed to report ready, then asserts on the live DOM and writes
- * a screenshot. Uses its own temp profile, so the user's Chrome is untouched.
+ * Launches an isolated headless Chrome (or Edge, whichever is installed)
+ * against an already-running dev server, waits for the embed to report ready,
+ * then asserts on the live DOM and writes a screenshot. Uses its own temp
+ * profile, so the user's browser is untouched.
+ *
+ * The browser runs at a fixed 520x900 window — the narrow side-panel shape this
+ * app is built for. Both the page screenshot and the grid click below are tied
+ * to that viewport; widen it and the click lands on a different cell.
  *
  *   npm run dev            # in one shell
  *   node scripts/browser-smoke.mjs [url]
@@ -14,6 +19,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createWorkbook } from '@mog-sdk/sdk';
+import { resolveBrowserExecutable } from './browser-executable.mjs';
 
 const url = process.argv[2] ?? 'http://127.0.0.1:5273';
 const port = 9333;
@@ -35,10 +41,8 @@ async function readA6() {
 const before = await readA6();
 const typed = String(before) === '4242' ? '1337' : '4242';
 
-const CHROME_CANDIDATES = [
-  'C:/Program Files/Google/Chrome/Application/chrome.exe',
-  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-];
+const executable = resolveBrowserExecutable();
+console.log(`browser: ${executable}`);
 
 let failures = 0;
 function check(label, ok, detail = '') {
@@ -47,8 +51,8 @@ function check(label, ok, detail = '') {
 }
 
 const profile = await mkdtemp(join(tmpdir(), 'mog-smoke-'));
-const chrome = spawn(
-  CHROME_CANDIDATES[0],
+const browser = spawn(
+  executable,
   [
     '--headless=new',
     `--remote-debugging-port=${port}`,
@@ -265,12 +269,14 @@ try {
     for (const line of consoleErrors.slice(0, 5)) console.log(`  ${line.slice(0, 300)}`);
   }
 
+  // Viewport only: whatever fits in 520x900 at the current scroll position.
+  // For a picture of a specific range, use the canvas's own `Screenshot` button.
   const shot = await send('Page.captureScreenshot', { format: 'png' });
   await writeFile(shotPath, Buffer.from(shot.data, 'base64'));
   console.log(`\nscreenshot: ${shotPath}`);
 } finally {
   ws?.close();
-  chrome.kill();
+  browser.kill();
   await rm(profile, { recursive: true, force: true }).catch(() => undefined);
 }
 
