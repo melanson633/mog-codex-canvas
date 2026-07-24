@@ -93,9 +93,11 @@ this project follows it closely.
   is a separate export from the module, and a static import of it in the entry
   file is evaluated before any adapter probe runs — so a package that fails to
   resolve takes the whole page down before `unavailable-adapter.ts` can report
-  why. It is therefore loaded from `src/adapters/mog-embed-adapter.ts`, after the
-  embed itself has resolved, and `scripts/verify.mjs` asserts that the entry
-  module's transformed output contains no `@mog-sdk` reference at all.
+  why. `src/adapters/index.ts` therefore loads the stylesheet and embed module
+  together inside the guarded adapter-resolution path, before the adapter is
+  returned. If either import fails, resolution returns the unavailable adapter.
+  `scripts/verify.mjs` asserts both fallback paths and that the entry module's
+  transformed output contains no `@mog-sdk` reference at all.
 
 ## The actual gap: Codex integration
 
