@@ -1,0 +1,28 @@
+{
+  "name": "mog-codex-live-xlsx",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Standalone local companion app: a live, editable Mog XLSX canvas to run beside the Codex desktop app.",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "headless": "node scripts/headless-edit.mjs",
+    "verify": "node scripts/verify.mjs",
+    "smoke": "node scripts/browser-smoke.mjs"
+  },
+  "dependencies": {
+    "@mog-sdk/sdk": "^0.10.5",
+    "@mog-sdk/spreadsheet-app": "^0.10.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0"
+  }
+}
