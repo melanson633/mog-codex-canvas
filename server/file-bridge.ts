@@ -4,7 +4,9 @@
  * The Mog embed runs in the browser and never touches disk itself: it hands the
  * host XLSX bytes on save (`onSaveRequest`) and expects the host to persist them.
  * This Vite middleware is that host — it is the only component with disk access,
- * and it is confined to a single workbook root directory.
+ * and it is confined to a single workbook root directory. Every client-supplied
+ * path goes through the containment policy in ./path-policy, which is
+ * load-bearing: these endpoints serve real local disk.
  *
  * Endpoints (all under /api, bound to 127.0.0.1 by the dev server):
  *   GET  /api/config            -> { root, files }
@@ -15,8 +17,14 @@
  */
 import { readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { join } from 'node:path';
 import type { Plugin } from 'vite';
+import {
+  WORKBOOK_EXTENSION,
+  canonicalizeRoot,
+  resolveReadTarget,
+  resolveSaveTarget,
+} from './path-policy';
 
 export interface FileBridgeOptions {
   /** Directory that holds the workbooks the canvas may open and save. */
@@ -43,21 +51,6 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(payload);
 }
 
-/**
- * Resolves a client-supplied name against the workbook root and refuses anything
- * that escapes it. The bridge serves local disk, so this check is load-bearing.
- */
-function resolveInRoot(root: string, name: string | null): string {
-  if (!name) throw new Error('Missing "path" query parameter');
-  if (isAbsolute(name)) throw new Error('Absolute paths are not accepted');
-  const target = resolve(root, name);
-  const rel = relative(root, target);
-  if (rel.startsWith('..') || isAbsolute(rel) || rel.includes(`..${sep}`)) {
-    throw new Error(`Path escapes the workbook root: ${name}`);
-  }
-  return target;
-}
-
 async function readBody(req: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);
@@ -68,7 +61,7 @@ async function listWorkbooks(root: string): Promise<WorkbookEntry[]> {
   const names = await readdir(root).catch(() => [] as string[]);
   const entries: WorkbookEntry[] = [];
   for (const name of names) {
-    if (!name.toLowerCase().endsWith('.xlsx') || name.startsWith('~$')) continue;
+    if (!name.toLowerCase().endsWith(WORKBOOK_EXTENSION) || name.startsWith('~$')) continue;
     const info = await stat(join(root, name));
     entries.push({ name, size: info.size, modified: info.mtime.toISOString() });
   }
@@ -105,7 +98,7 @@ async function validateWorkbook(file: string): Promise<unknown> {
 }
 
 export function fileBridge(options: FileBridgeOptions): Plugin {
-  const root = resolve(options.root);
+  const root = canonicalizeRoot(options.root);
 
   return {
     name: 'mog-companion-file-bridge',
@@ -120,7 +113,7 @@ export function fileBridge(options: FileBridgeOptions): Plugin {
           }
 
           if (url.pathname === '/api/workbook' && req.method === 'GET') {
-            const file = resolveInRoot(root, url.searchParams.get('path'));
+            const file = await resolveReadTarget(root, url.searchParams.get('path'), 'workbook');
             const bytes = await readFile(file);
             res.writeHead(200, {
               'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -131,7 +124,7 @@ export function fileBridge(options: FileBridgeOptions): Plugin {
           }
 
           if (url.pathname === '/api/workbook' && req.method === 'PUT') {
-            const file = resolveInRoot(root, url.searchParams.get('path'));
+            const file = await resolveSaveTarget(root, url.searchParams.get('path'), 'workbook');
             const bytes = await readBody(req);
             if (bytes.byteLength === 0) throw new Error('Refusing to write an empty workbook');
             const previous = await stat(file).catch(() => null);
@@ -146,14 +139,14 @@ export function fileBridge(options: FileBridgeOptions): Plugin {
           }
 
           if (url.pathname === '/api/screenshot' && req.method === 'PUT') {
-            const file = resolveInRoot(root, url.searchParams.get('path'));
+            const file = await resolveSaveTarget(root, url.searchParams.get('path'), 'screenshot');
             const bytes = await readBody(req);
             await writeFile(file, bytes);
             return sendJson(res, 200, { file, bytes: bytes.byteLength });
           }
 
           if (url.pathname === '/api/validate' && req.method === 'POST') {
-            const file = resolveInRoot(root, url.searchParams.get('path'));
+            const file = await resolveReadTarget(root, url.searchParams.get('path'), 'workbook');
             return sendJson(res, 200, await validateWorkbook(file));
           }
 
