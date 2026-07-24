@@ -27,7 +27,7 @@ import type {
   OpenRequest,
 } from './types';
 
-type EmbedModule = typeof import('@mog-sdk/spreadsheet-app');
+export type EmbedModule = typeof import('@mog-sdk/spreadsheet-app');
 
 /** Served from public/mog/ by scripts/sync-mog-assets.mjs. */
 const ASSETS = {
@@ -49,28 +49,15 @@ export const MOG_EMBED_PROBE: AdapterProbe = {
 };
 
 /**
- * The embed's own stylesheet, pulled in only once this adapter is actually used.
- *
- * It cannot be imported from src/main.tsx: a static import there is evaluated
- * before any adapter resolution runs, so a missing package or a renamed
- * ./styles.css export would abort startup instead of falling through to
- * unavailable-adapter.ts. Cached as a promise so re-opening a workbook does not
- * re-request it.
+ * Built only from an embed module that resolveCanvasAdapter() has already
+ * loaded and shape-checked, alongside the embed's stylesheet — so by the time
+ * open() runs, both are known good and the grid cannot paint unstyled.
  */
-let embedStyles: Promise<unknown> | null = null;
-function loadEmbedStyles(): Promise<unknown> {
-  embedStyles ??= import('@mog-sdk/spreadsheet-app/styles.css');
-  return embedStyles;
-}
-
 export function createMogEmbedAdapter(embed: EmbedModule): CanvasAdapter {
   return {
     probe: MOG_EMBED_PROBE,
 
     async open(container, request, host): Promise<CanvasSession> {
-      // Before the canvas mounts, so the grid never paints unstyled.
-      await loadEmbedStyles();
-
       const runtime = await embed.createSpreadsheetRuntime({
         assets: ASSETS,
         host: {

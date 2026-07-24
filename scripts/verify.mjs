@@ -4,7 +4,8 @@
  *   1. headless engine: formula compute, save, reopen, read-back, screenshot
  *   2. dev server: runtime assets on both wasm URL shapes
  *   3. file bridge: config / read / write / validate
- *   4. startup isolation: the entry module pulls in no @mog-sdk code
+ *   4. adapter resolution: startup imports no @mog-sdk code, and a faulted embed
+ *      import (module or stylesheet) falls back before any canvas opens
  *   5. the smoke test can find a browser to drive
  *
  *   node scripts/verify.mjs
@@ -15,7 +16,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createWorkbook } from '@mog-sdk/sdk';
 import { createServer } from 'vite';
-import { resolveBrowserExecutable } from './browser-executable.mjs';
+import { BROWSER_CANDIDATES, resolveBrowserExecutable } from './browser-executable.mjs';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = resolve(projectRoot, 'workbooks/.verify');
@@ -126,16 +127,65 @@ try {
     entry.code.match(/\S*@mog-sdk\S*/)?.[0] ?? '',
   );
 
+  const resolution = await server.transformRequest('/src/adapters/index.ts');
+  check(
+    'adapter resolution imports the embed stylesheet',
+    /styles\.css/.test(resolution.code),
+  );
   const adapter = await server.transformRequest('/src/adapters/mog-embed-adapter.ts');
   check(
-    'Mog adapter loads the embed stylesheet itself',
-    /styles\.css/.test(adapter.code),
+    'the returned Mog adapter imports no stylesheet of its own',
+    !/styles\.css/.test(adapter.code),
+    adapter.code.match(/\S*styles\.css\S*/)?.[0] ?? '',
   );
+
+  // Both embed imports run inside the guarded resolution path, so faulting
+  // either one must yield the unavailable adapter *before* open() is reachable.
+  // The EmbedImports argument is the seam — nothing is deleted from disk.
+  const { resolveCanvasAdapter } = await server.ssrLoadModule('/src/adapters/index.ts');
+  const embedApi = { createSpreadsheetRuntime() {}, mountSpreadsheetApp() {} };
+  const missing = (what) => () => Promise.reject(new Error(`${what} is missing`));
+
+  const loaded = [];
+  const healthy = await resolveCanvasAdapter({
+    styles: async () => loaded.push('styles'),
+    module: async () => (loaded.push('module'), embedApi),
+  });
+  check('healthy imports resolve to the Mog embed adapter', healthy.probe.id === 'mog-embed', healthy.probe.label);
+  check('stylesheet is imported before the embed module', loaded.join() === 'styles,module', loaded.join());
+
+  const noStyles = await resolveCanvasAdapter({
+    styles: missing('@mog-sdk/spreadsheet-app/styles.css'),
+    module: async () => embedApi,
+  });
+  check(
+    'missing stylesheet returns the unavailable adapter, not a canvas',
+    noStyles.probe.id === 'unavailable' && noStyles.probe.detail.includes('styles.css'),
+    noStyles.probe.detail,
+  );
+
+  const noPackage = await resolveCanvasAdapter({
+    styles: async () => undefined,
+    module: missing('@mog-sdk/spreadsheet-app'),
+  });
+  check('missing embed package returns the unavailable adapter', noPackage.probe.id === 'unavailable', noPackage.probe.detail);
+
+  const wrongApi = await resolveCanvasAdapter({
+    styles: async () => undefined,
+    module: async () => ({}),
+  });
+  check('embed without the expected exports returns the unavailable adapter', wrongApi.probe.id === 'unavailable', wrongApi.probe.detail);
 } finally {
   await server.close();
 }
 
 // 5. The smoke lane's browser. Resolution only — nothing is launched here.
+const perUserChrome = `${(process.env.LOCALAPPDATA ?? '').replaceAll('\\', '/')}/Google/Chrome/Application/chrome.exe`;
+check(
+  'browser candidates include a per-user Chrome install',
+  BROWSER_CANDIDATES.includes(perUserChrome),
+  perUserChrome,
+);
 try {
   const installed = resolveBrowserExecutable();
   check('smoke test resolves an installed browser', existsSync(installed), installed);

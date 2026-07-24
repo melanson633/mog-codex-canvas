@@ -37,13 +37,14 @@ loads are cached.
 | --- | --- |
 | `npm run dev` | Vite dev server: the canvas, the file bridge, the Mog runtime assets |
 | `npm run headless` | Headless SDK lane — edit, save, re-open, validate, screenshot |
-| `npm run verify` | 16 checks, no browser: engine round-trip + asset routing + file bridge + startup isolation |
+| `npm run verify` | 23 checks, no browser: engine round-trip + asset routing + file bridge + adapter resolution |
 | `npm run smoke` | 9 checks in a headless browser: does the canvas mount, render, and save to disk |
 | `npm run typecheck` | `tsc --noEmit` |
 
 `npm run smoke` needs `npm run dev` already running in another shell. It drives
-Chrome if installed and falls back to Edge, always in a throwaway profile, so
-your browser and sessions are untouched.
+Chrome if installed — per-machine or per-user (`%LOCALAPPDATA%`) — and falls
+back to Edge, always in a throwaway profile, so your browser and sessions are
+untouched.
 
 It runs at a fixed **520x900** viewport — the narrow side-panel shape this app is
 built for — and that size is load-bearing: the edit check clicks the grid at a
@@ -99,10 +100,13 @@ That fallback only holds if nothing Mog-specific is imported before it runs, so
 the two `@mog-sdk` dependencies are used in deliberately different places:
 
 - **`@mog-sdk/spreadsheet-app`** — the browser dependency, reached only through
-  the adapter. Its stylesheet is loaded there too (not from `src/main.tsx`), so
-  a missing package or a renamed `./styles.css` export lands on the fallback
-  instead of blanking the page. `npm run verify` asserts the entry module still
-  pulls in no `@mog-sdk` code.
+  the adapter. `resolveCanvasAdapter()` imports the module *and* its stylesheet
+  in the same guarded path (neither from `src/main.tsx`), so a missing package
+  or a renamed `./styles.css` export returns the fallback before any canvas
+  opens, instead of blanking the page or throwing mid-open. `npm run verify`
+  asserts the entry module still pulls in no `@mog-sdk` code, and faults each
+  import in turn — through `resolveCanvasAdapter(imports)` — to prove the
+  fallback.
 - **`@mog-sdk/sdk`** — the headless engine, Node side only; it never reaches the
   browser bundle. Used by the file bridge for `Verify` and by the scripts in
   `scripts/`. The TypeScript bridge imports `@mog-sdk/sdk/node`, because under
