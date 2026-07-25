@@ -11,7 +11,8 @@
  */
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, mkdir, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -95,7 +96,30 @@ describe('headless-edit', () => {
     assert.match(run.stderr, /must end in \.xlsx/);
   });
 
+  // The screenshot path is derived from the selector, not supplied, so it is the
+  // one target an agent cannot see being checked. A link planted there sends the
+  // image outside the root — and because both targets are authorized before the
+  // engine loads, the refusal has to come before the workbook is opened at all,
+  // not after it has already been stamped and saved.
+  it('refuses before editing when the derived screenshot path leaves the root', async () => {
+    const book = join(root, 'linked.xlsx');
+    const decoy = join(outside, 'planted.png');
+    await writeFile(decoy, 'planted');
+    // File symlinks need developer mode or elevation on Windows; skip if unavailable.
+    const planted = await symlink(decoy, join(root, 'linked.headless.png'), 'file').then(
+      () => true,
+      () => false,
+    );
+    if (!planted) return;
+
+    const seeded = await runHeadless('linked.xlsx');
+    assert.equal(seeded.code, 1, seeded.stdout);
+    assert.match(seeded.stderr, /escapes the workbook root/);
+    assert.equal(existsSync(book), false, 'the workbook was created before the check ran');
+    assert.equal(await readFile(decoy, 'utf8'), 'planted');
+  });
+
   it('writes nothing outside the root while being refused', async () => {
-    assert.deepEqual(await readdir(outside), ['secret.xlsx']);
+    assert.deepEqual((await readdir(outside)).sort(), ['planted.png', 'secret.xlsx']);
   });
 });
