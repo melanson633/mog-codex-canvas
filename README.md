@@ -66,7 +66,12 @@ Verified end-to-end on this machine, not asserted:
 - **Edit** — full Mog UI: ribbon, formula bar, formula compute, multi-sheet tabs.
 - **Save to disk** — `Save` funnels the canvas's `onSaveRequest` bytes through the
   host to `PUT /api/workbook`. The previous file is kept as `<name>.xlsx.bak`, and
-  empty writes are refused.
+  empty writes are refused. Bytes are staged beside the target and promoted with
+  a single rename, so an interrupted save never leaves a truncated or missing
+  workbook — a crash costs only an orphan `.staged` file. Saves are last-write-
+  wins and not serialized across lanes: if the canvas and the agent lane write
+  the same workbook at the same instant, one of them is told the save failed
+  rather than the two being interleaved.
 - **Verify** — `POST /api/validate` re-opens the *saved file* with the headless
   engine and shows its `summarize()` output. This is a read-back of disk, not of
   the canvas's memory.
