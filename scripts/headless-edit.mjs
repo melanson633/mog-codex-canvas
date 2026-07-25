@@ -6,15 +6,21 @@
  * afterwards to see the result.
  *
  *   node scripts/headless-edit.mjs [workbook.xlsx]
+ *
+ * The selector is a path *relative to the workbook root*, and it goes through
+ * the same containment policy as the browser lane (../server/path-policy.ts):
+ * this lane has the same disk access the file bridge has, so an agent must not
+ * be able to reach further with it than the canvas can.
  */
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createWorkbook } from '@mog-sdk/sdk';
+import { canonicalizeRoot, resolveSaveTarget } from '../server/path-policy.ts';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workbookRoot = process.env.MOG_WORKBOOK_DIR ?? resolve(projectRoot, 'workbooks');
-const file = resolve(workbookRoot, process.argv[2] ?? 'sample.xlsx');
+const selector = process.argv[2] ?? 'sample.xlsx';
 
 async function exists(path) {
   try {
@@ -26,6 +32,20 @@ async function exists(path) {
 }
 
 await mkdir(workbookRoot, { recursive: true });
+const root = canonicalizeRoot(workbookRoot);
+
+// Both targets are authorized before the engine starts, so a rejected selector
+// never opens a workbook and never leaves a stray image beside one.
+let file;
+let pngPath;
+try {
+  file = await resolveSaveTarget(root, selector, 'workbook');
+  pngPath = await resolveSaveTarget(root, selector.replace(/\.xlsx$/i, '.headless.png'), 'screenshot');
+} catch (error) {
+  console.error(`[headless] ${error.message}`);
+  process.exit(1);
+}
+
 const isNew = !(await exists(file));
 
 const wb = isNew ? await createWorkbook() : await createWorkbook(file);
@@ -60,7 +80,6 @@ try {
   console.log(await ws.summarize());
 
   const png = await check.captureScreenshot(ws, 'A1:D6', { dpr: 2 });
-  const pngPath = file.replace(/\.xlsx$/i, '.headless.png');
   await writeFile(pngPath, png);
   console.log(`[screenshot] ${pngPath} (${png.length.toLocaleString()} bytes)`);
 } finally {
