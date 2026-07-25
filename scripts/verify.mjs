@@ -7,9 +7,11 @@
  *   4. adapter resolution: startup imports no @mog-sdk code, and a faulted embed
  *      import (module or stylesheet) falls back before any canvas opens
  *   5. the smoke test can find a browser to drive
+ *   6. agent lane: the headless script refuses selectors that leave the root
  *
  *   node scripts/verify.mjs
  */
+import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -195,6 +197,22 @@ try {
   check('browser resolution skips candidates that are not installed', picked === installed, picked);
 } catch (error) {
   check('smoke test resolves an installed browser', false, error.message);
+}
+
+// 6. The agent lane runs against the same disk as the bridge with no HTTP layer
+// in front of it, so its selector policy is checked here too. Both selectors are
+// refused before the engine loads, which is why nothing is written or cleaned up.
+const headlessScript = resolve(projectRoot, 'scripts/headless-edit.mjs');
+for (const [selector, expected] of [
+  ['../escape.xlsx', /escapes the workbook root/],
+  ['sample.txt', /must end in \.xlsx/],
+]) {
+  const run = spawnSync(process.execPath, [headlessScript, selector], { encoding: 'utf8' });
+  check(
+    `headless lane refuses "${selector}"`,
+    run.status === 1 && expected.test(run.stderr),
+    run.stderr.trim().split('\n')[0] || `exit ${run.status}`,
+  );
 }
 
 await rm(scratch, { recursive: true, force: true });
