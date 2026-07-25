@@ -2,3 +2,4 @@ node_modules/
 dist/
 workbooks/*.bak
 workbooks/*.png
+workbooks/*.staged
