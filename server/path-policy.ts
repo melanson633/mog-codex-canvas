@@ -53,6 +53,14 @@ function requestedPath(root: string, name: string, kind: TargetKind): string {
   if (isAbsolute(name) || DRIVE_RELATIVE.test(name) || name.startsWith('\\\\') || name.startsWith('//')) {
     throw new Error(`Absolute paths are not accepted: ${name}`);
   }
+  // On NTFS a colon opens an alternate data stream: `notes.txt:book.xlsx` names
+  // a stream hanging off notes.txt, and `extname` reads the stream name, so the
+  // check below would pass a .txt through as a workbook. The stream lives inside
+  // the root, so this is not an escape — it is a way around the extension
+  // allowlist, and no legitimate workbook or screenshot name contains a colon.
+  if (name.includes(':')) {
+    throw new Error(`Path names an alternate data stream: ${name}`);
+  }
   const expected = EXTENSIONS[kind];
   if (extname(name).toLowerCase() !== expected) {
     throw new Error(`A ${kind} path must end in ${expected}: ${name}`);

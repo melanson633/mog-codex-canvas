@@ -155,6 +155,14 @@ describe('resolveReadTarget', () => {
   it('rejects a null byte', async () => {
     await rejects(() => resolveReadTarget(root, 'book.xlsx\0.png', 'workbook'), /null byte/);
   });
+
+  // `notes.txt:book.xlsx` names a stream hanging off notes.txt, not a workbook.
+  // It canonicalizes inside the root, so containment holds either way — but the
+  // extension check reads the part after the colon, which is how a .txt ends up
+  // served through a lane that is supposed to serve only .xlsx.
+  it('rejects an alternate data stream', async () => {
+    await rejects(() => resolveReadTarget(root, 'notes.txt:book.xlsx', 'workbook'), /data stream/);
+  });
 });
 
 describe('resolveSaveTarget', () => {
@@ -171,6 +179,10 @@ describe('resolveSaveTarget', () => {
       await resolveSaveTarget(root, 'sub/fresh.xlsx', 'workbook'),
       join(root, 'sub', 'fresh.xlsx'),
     );
+  });
+
+  it('rejects an alternate data stream on a name it would otherwise accept', async () => {
+    await rejects(() => resolveSaveTarget(root, 'book.xlsx:hidden.xlsx', 'workbook'), /data stream/);
   });
 
   it('overwrites an existing workbook at its canonical path', async () => {
