@@ -37,7 +37,8 @@ loads are cached.
 | --- | --- |
 | `npm run dev` | Vite dev server: the canvas, the file bridge, the Mog runtime assets |
 | `npm run headless` | Headless SDK lane — edit, save, re-open, validate, screenshot |
-| `npm run verify` | 23 checks, no browser: engine round-trip + asset routing + file bridge + adapter resolution |
+| `npm test` | 64 unit tests, no server: path containment, crash-safe writes, bridge endpoints, agent lane |
+| `npm run verify` | 25 checks, no browser: engine round-trip + asset routing + file bridge + adapter resolution |
 | `npm run smoke` | 9 checks in a headless browser: does the canvas mount, render, and save to disk |
 | `npm run typecheck` | `tsc --noEmit` |
 
