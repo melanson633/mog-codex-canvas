@@ -11,6 +11,7 @@
  * containment policy, including the junction escape that lexical checks miss.
  */
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
 import { mkdtemp, mkdir, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -131,6 +132,77 @@ describe('replaceFile', () => {
   });
 });
 
+/**
+ * The cases the happy-path tests above cannot reach: a process that dies rather
+ * than rejects, two writers on one workbook, a planted link on the backup path,
+ * and a client that hangs up mid-upload. Each one is a way the primary workbook
+ * could plausibly be lost, so each asserts the workbook is not merely present
+ * but still loadable by the engine.
+ */
+describe('replaceFile under duress', () => {
+  it('survives the process being killed at the moment of promotion', async () => {
+    const file = join(root, 'killed.xlsx');
+    const original = await xlsxBytes('A1', 'original');
+    await writeFile(file, original);
+
+    // A rejected promise is a polite failure; this is the impolite one. The
+    // child dies inside promote(), after the bytes are staged and the backup is
+    // taken — precisely where the previous save had already emptied the target.
+    const fixture = join(base, 'kill-mid-save.mjs');
+    await writeFile(
+      fixture,
+      [
+        `import { replaceFile } from ${JSON.stringify(new URL('./file-bridge.ts', import.meta.url).href)};`,
+        `const [target, payload] = process.argv.slice(2);`,
+        `await replaceFile(target, Buffer.from(payload, 'base64'), {`,
+        `  backup: true,`,
+        `  promote: () => { process.kill(process.pid, 'SIGKILL'); return new Promise(() => {}); },`,
+        `});`,
+      ].join('\n'),
+    );
+    const replacement = await xlsxBytes('A1', 'replacement');
+    const died = await new Promise<Error | null>((resolve) => {
+      execFile(process.execPath, [fixture, file, replacement.toString('base64')], resolve);
+    });
+    assert.ok(died, 'the child was supposed to die mid-save');
+
+    const { createWorkbook } = await import('@mog-sdk/sdk/node');
+    const survivor = await createWorkbook(file);
+    try {
+      assert.equal(await survivor.activeSheet.getValue('A1'), 'original');
+    } finally {
+      await survivor.dispose();
+    }
+    assert.equal(Buffer.compare(await readFile(`${file}.bak`), original), 0);
+    // The whole cost of the crash: one staged file nobody will promote. It is
+    // gitignored and the next save writes its own, so nothing cleans it up.
+    assert.equal(
+      (await readdir(root)).filter((name) => name.startsWith('killed.xlsx.') && name.endsWith('.staged'))
+        .length,
+      1,
+    );
+  });
+
+  it('does not write through a .bak that links outside the root', async () => {
+    const file = join(root, 'linked-backup.xlsx');
+    await writeFile(file, 'previous version');
+    const treasure = join(outside, 'treasure.txt');
+    await writeFile(treasure, 'do not overwrite');
+    // File symlinks need developer mode or elevation on Windows; skip if unavailable.
+    const planted = await symlink(treasure, `${file}.bak`, 'file').then(
+      () => true,
+      () => false,
+    );
+    if (!planted) return;
+
+    await replaceFile(file, Buffer.from('new version'), { backup: true });
+
+    assert.equal(await readFile(treasure, 'utf8'), 'do not overwrite');
+    assert.equal(await readFile(`${file}.bak`, 'utf8'), 'previous version');
+    assert.equal(await readFile(file, 'utf8'), 'new version');
+  });
+});
+
 describe('bridge endpoints', () => {
   it('GET /api/config lists workbooks in the root', async () => {
     const config = await fetch(`${origin}/api/config`).then((r) => r.json());
@@ -242,5 +314,79 @@ describe('bridge endpoints', () => {
   it('passes a non-/api request to the next middleware', async () => {
     const res = await fetch(`${origin}/index.html`);
     assert.equal(res.status, 418);
+  });
+
+  // The canvas and the agent lane write the same root, so two saves landing on
+  // one workbook is a real sequence, not a synthetic one. A loser may lose its
+  // edit and must be told so; what must never happen is a workbook that is half
+  // of one save and half of another, or a save reported failed that in fact won.
+  it('leaves one whole workbook when four saves race for it', async () => {
+    const writers = await Promise.all(
+      [0, 1, 2, 3].map((n) => xlsxBytes('A1', `writer-${n}`)),
+    );
+    const responses = await Promise.all(
+      writers.map((bytes) =>
+        fetch(`${origin}/api/workbook?path=contended.xlsx`, {
+          method: 'PUT',
+          body: new Uint8Array(bytes),
+        }),
+      ),
+    );
+    const statuses = responses.map((res) => res.status);
+    assert.ok(statuses.includes(200), `no save succeeded: ${statuses.join()}`);
+    for (const [n, res] of responses.entries()) {
+      if (res.status === 200) continue;
+      assert.equal(res.status, 400, `writer-${n} failed with ${res.status}`);
+      assert.match((await res.json()).error, /was not changed by this save/);
+    }
+
+    const onDisk = await readFile(join(root, 'contended.xlsx'));
+    const winner = writers.findIndex((bytes) => Buffer.compare(bytes, onDisk) === 0);
+    assert.notEqual(winner, -1, 'the file on disk matches no single writer — it is torn');
+    assert.equal(statuses[winner], 200, `writer-${winner} won the race but was told it failed`);
+
+    const { createWorkbook } = await import('@mog-sdk/sdk/node');
+    const book = await createWorkbook(join(root, 'contended.xlsx'));
+    try {
+      assert.equal(await book.activeSheet.getValue('A1'), `writer-${winner}`);
+    } finally {
+      await book.dispose();
+    }
+    assert.deepEqual(
+      (await readdir(root)).filter((name) => name.startsWith('contended.xlsx.')),
+      ['contended.xlsx.bak'],
+    );
+  });
+
+  it('writes nothing when the client hangs up mid-upload', async () => {
+    const target = join(root, 'aborted.xlsx');
+    const controller = new AbortController();
+    const body = new ReadableStream({
+      start(controllerStream) {
+        // A first chunk and then silence: the request is open, the body never ends.
+        controllerStream.enqueue(new Uint8Array([0x50, 0x4b, 0x03, 0x04]));
+      },
+    });
+    const init = {
+      method: 'PUT',
+      body,
+      signal: controller.signal,
+      duplex: 'half',
+    } as unknown as RequestInit;
+
+    const request = fetch(`${origin}/api/workbook?path=aborted.xlsx`, init).catch(
+      (error: Error) => error,
+    );
+    const outcome = await new Promise((resolve) => setTimeout(resolve, 50)).then(() => {
+      controller.abort();
+      return request;
+    });
+    assert.ok(outcome instanceof Error, 'the aborted request should not resolve');
+
+    assert.equal(await readFile(target, 'utf8').catch(() => null), null);
+    assert.deepEqual(
+      (await readdir(root)).filter((name) => name.startsWith('aborted')),
+      [],
+    );
   });
 });

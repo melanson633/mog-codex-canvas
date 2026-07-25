@@ -98,14 +98,22 @@ export async function replaceFile(
   const existed = (await stat(file).catch(() => null)) !== null;
   try {
     const previous = backup && existed ? `${file}.bak` : null;
-    if (previous) await copyFile(file, previous);
+    if (previous) {
+      // Clear the backup path before copying onto it. It is derived from the
+      // target rather than resolved by the policy, and a copy follows a link
+      // sitting there — a symlink planted at `<workbook>.bak` would send the
+      // previous version outside the root. Unlink removes the link itself.
+      await rm(previous, { force: true });
+      await copyFile(file, previous);
+    }
     await promote(staged, file);
     return { file, bytes: bytes.byteLength, backup: previous };
   } catch (error) {
     await rm(staged, { force: true });
+    const present = (await stat(file).catch(() => null)) !== null;
     throw new Error(
       `Could not write ${file}: ${reason(error)}. ` +
-        (existed ? 'The previous version is unchanged.' : 'No file was written.'),
+        (present ? 'The file on disk was not changed by this save.' : 'No file was written.'),
     );
   }
 }
