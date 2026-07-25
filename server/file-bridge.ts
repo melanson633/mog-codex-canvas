@@ -8,6 +8,10 @@
  * path goes through the containment policy in ./path-policy, which is
  * load-bearing: these endpoints serve real local disk.
  *
+ * Writes are staged rather than overwritten in place (see `replaceFile` below),
+ * so a save that dies partway through cannot leave the workbook truncated or
+ * missing — the file at the target path is always a complete workbook.
+ *
  * Endpoints (all under /api, bound to 127.0.0.1 by the dev server):
  *   GET  /api/config            -> { root, files }
  *   GET  /api/workbook?path=    -> raw xlsx bytes
@@ -15,7 +19,7 @@
  *   PUT  /api/screenshot?path=  -> write png bytes
  *   POST /api/validate?path=    -> headless @mog-sdk/sdk read-back of the saved file
  */
-import { readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
+import { copyFile, open, readFile, readdir, rename, rm, stat } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import type { Plugin } from 'vite';
@@ -24,7 +28,7 @@ import {
   canonicalizeRoot,
   resolveReadTarget,
   resolveSaveTarget,
-} from './path-policy';
+} from './path-policy.ts'; // explicit extension: the bridge is loaded by `node --test` as well as by Vite
 
 export interface FileBridgeOptions {
   /** Directory that holds the workbooks the canvas may open and save. */
@@ -40,6 +44,70 @@ export interface WorkbookEntry {
 interface SheetSummary {
   readonly name: string;
   readonly summary: string;
+}
+
+export interface ReplaceOptions {
+  /** Copy the version being replaced to `<file>.bak` before promoting the new one. */
+  readonly backup: boolean;
+  /**
+   * The promotion step. Only overridden by tests, which cannot make a real
+   * rename fail on demand, and a failed promotion is the case that decides
+   * whether a workbook survives a bad save.
+   */
+  readonly promote?: (from: string, to: string) => Promise<void>;
+}
+
+export interface ReplaceResult {
+  readonly file: string;
+  readonly bytes: number;
+  readonly backup: string | null;
+}
+
+/** Unique within a process; the pid keeps two dev servers on one root apart. */
+let stagedCount = 0;
+
+function reason(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Replaces `file` with `bytes` without ever leaving the target path missing.
+ *
+ * The bytes land in a staged sibling first and are flushed to disk before
+ * anything at the target moves, so a crash mid-write costs only the staged
+ * file. The previous version is *copied* aside rather than renamed away — a
+ * rename would open a window where the workbook exists only as a `.bak` — and
+ * the staged file is then promoted with a single rename, which replaces the
+ * target atomically. If that promotion fails, the original is still the file it
+ * always was, and the staged copy is removed.
+ */
+export async function replaceFile(
+  file: string,
+  bytes: Buffer,
+  { backup, promote = rename }: ReplaceOptions,
+): Promise<ReplaceResult> {
+  const staged = `${file}.${process.pid}.${stagedCount++}.staged`;
+  const handle = await open(staged, 'wx');
+  try {
+    await handle.writeFile(bytes);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+
+  const existed = (await stat(file).catch(() => null)) !== null;
+  try {
+    const previous = backup && existed ? `${file}.bak` : null;
+    if (previous) await copyFile(file, previous);
+    await promote(staged, file);
+    return { file, bytes: bytes.byteLength, backup: previous };
+  } catch (error) {
+    await rm(staged, { force: true });
+    throw new Error(
+      `Could not write ${file}: ${reason(error)}. ` +
+        (existed ? 'The previous version is unchanged.' : 'No file was written.'),
+    );
+  }
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -97,66 +165,74 @@ async function validateWorkbook(file: string): Promise<unknown> {
   }
 }
 
-export function fileBridge(options: FileBridgeOptions): Plugin {
+/** Connect-style middleware, so the endpoints can be driven without a Vite server. */
+export type BridgeHandler = (
+  req: IncomingMessage,
+  res: ServerResponse,
+  next: () => void,
+) => Promise<void>;
+
+/**
+ * Builds the /api handler over one workbook root. The root is canonicalized
+ * here, at construction: without a resolvable root there is no containment
+ * boundary, and the bridge must not come up at all.
+ */
+export function createBridgeHandler(options: FileBridgeOptions): BridgeHandler {
   const root = canonicalizeRoot(options.root);
 
+  return async (req, res, next) => {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    if (!url.pathname.startsWith('/api/')) return next();
+
+    try {
+      if (url.pathname === '/api/config' && req.method === 'GET') {
+        return sendJson(res, 200, { root, files: await listWorkbooks(root) });
+      }
+
+      if (url.pathname === '/api/workbook' && req.method === 'GET') {
+        const file = await resolveReadTarget(root, url.searchParams.get('path'), 'workbook');
+        const bytes = await readFile(file);
+        res.writeHead(200, {
+          'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'content-length': String(bytes.byteLength),
+          'cache-control': 'no-store',
+        });
+        res.end(bytes);
+        return;
+      }
+
+      if (url.pathname === '/api/workbook' && req.method === 'PUT') {
+        const file = await resolveSaveTarget(root, url.searchParams.get('path'), 'workbook');
+        const bytes = await readBody(req);
+        if (bytes.byteLength === 0) throw new Error('Refusing to write an empty workbook');
+        const saved = await replaceFile(file, bytes, { backup: true });
+        return sendJson(res, 200, { ...saved, versionId: new Date().toISOString() });
+      }
+
+      if (url.pathname === '/api/screenshot' && req.method === 'PUT') {
+        const file = await resolveSaveTarget(root, url.searchParams.get('path'), 'screenshot');
+        const saved = await replaceFile(file, await readBody(req), { backup: false });
+        return sendJson(res, 200, { file: saved.file, bytes: saved.bytes });
+      }
+
+      if (url.pathname === '/api/validate' && req.method === 'POST') {
+        const file = await resolveReadTarget(root, url.searchParams.get('path'), 'workbook');
+        return sendJson(res, 200, await validateWorkbook(file));
+      }
+
+      return sendJson(res, 404, { error: `No such endpoint: ${req.method} ${url.pathname}` });
+    } catch (error) {
+      return sendJson(res, 400, { error: reason(error) });
+    }
+  };
+}
+
+export function fileBridge(options: FileBridgeOptions): Plugin {
+  const handler = createBridgeHandler(options);
   return {
     name: 'mog-companion-file-bridge',
     configureServer(server) {
-      server.middlewares.use(async (req, res, next) => {
-        const url = new URL(req.url ?? '/', 'http://localhost');
-        if (!url.pathname.startsWith('/api/')) return next();
-
-        try {
-          if (url.pathname === '/api/config' && req.method === 'GET') {
-            return sendJson(res, 200, { root, files: await listWorkbooks(root) });
-          }
-
-          if (url.pathname === '/api/workbook' && req.method === 'GET') {
-            const file = await resolveReadTarget(root, url.searchParams.get('path'), 'workbook');
-            const bytes = await readFile(file);
-            res.writeHead(200, {
-              'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-              'content-length': String(bytes.byteLength),
-              'cache-control': 'no-store',
-            });
-            return res.end(bytes);
-          }
-
-          if (url.pathname === '/api/workbook' && req.method === 'PUT') {
-            const file = await resolveSaveTarget(root, url.searchParams.get('path'), 'workbook');
-            const bytes = await readBody(req);
-            if (bytes.byteLength === 0) throw new Error('Refusing to write an empty workbook');
-            const previous = await stat(file).catch(() => null);
-            if (previous) await rename(file, `${file}.bak`);
-            await writeFile(file, bytes);
-            return sendJson(res, 200, {
-              file,
-              bytes: bytes.byteLength,
-              backup: previous ? `${file}.bak` : null,
-              versionId: new Date().toISOString(),
-            });
-          }
-
-          if (url.pathname === '/api/screenshot' && req.method === 'PUT') {
-            const file = await resolveSaveTarget(root, url.searchParams.get('path'), 'screenshot');
-            const bytes = await readBody(req);
-            await writeFile(file, bytes);
-            return sendJson(res, 200, { file, bytes: bytes.byteLength });
-          }
-
-          if (url.pathname === '/api/validate' && req.method === 'POST') {
-            const file = await resolveReadTarget(root, url.searchParams.get('path'), 'workbook');
-            return sendJson(res, 200, await validateWorkbook(file));
-          }
-
-          return sendJson(res, 404, { error: `No such endpoint: ${req.method} ${url.pathname}` });
-        } catch (error) {
-          return sendJson(res, 400, {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-      });
+      server.middlewares.use(handler);
     },
   };
 }
