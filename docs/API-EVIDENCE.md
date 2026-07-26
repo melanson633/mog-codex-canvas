@@ -1,7 +1,8 @@
 # Mog embedding: what exists, what doesn't
 
-Everything below was verified on this machine on 2026-07-24. Nothing here is
-inferred from documentation alone.
+The Mog package and standalone-embed evidence below was verified on this
+machine on 2026-07-24. The Codex integration status was refreshed on
+2026-07-26 against the current `main` checkout.
 
 ## The reference clone was not available
 
@@ -99,10 +100,11 @@ this project follows it closely.
   `scripts/verify.mjs` asserts both fallback paths and that the entry module's
   transformed output contains no `@mog-sdk` reference at all.
 
-## The actual gap: Codex integration
+## Historical Codex gap and current plugin status
 
-**This project is not a Codex integration and does not attempt to be one.** That
-is a scoping decision, not a claim that Codex has no UI surface — an earlier
+At the time of the original 2026-07-24 investigation, this project was a
+standalone companion and did not attempt to be a Codex integration. That was a
+scoping decision, not a claim that Codex had no custom UI surface — an earlier
 version of this document asserted the latter, and it was wrong.
 
 Custom UI surfaces for Codex plugins/MCP apps do exist, and the evidence is on
@@ -121,30 +123,37 @@ against Codex chrome tokens (`--color-token-main-surface-primary`,
 `--color-token-dropdown-background`, and a `#181818` Codex dark fallback). So a
 plugin *can* put custom UI in front of the user.
 
-What that does **not** establish, and what this project therefore does not claim:
+That evidence did **not** establish:
 
 - That an artifact/MCP-app surface will host a ~41 MB WASM compute core plus font
   fetches from a host-supplied origin. Untested here.
 - That a Vite dev server becomes such a surface by being open beside Codex. It
-  does not. The disk access and asset routing here are dev-server middleware
-  (`server/file-bridge.ts`, `server/mog-assets.ts`) and there is no `build`
-  output, so there is nothing a plugin host could load today. Shipping this as a
-  plugin means writing an MCP server and a host-served runtime — a different
-  program.
+  does not. The standalone app's disk access and asset routing remain
+  dev-server middleware (`server/file-bridge.ts`, `server/mog-assets.ts`).
 
-The Mog↔Codex integration that already exists runs the opposite direction:
+The separate Mog↔Codex integration found during the initial research ran the
+opposite direction:
 `plugins/mog` in the Mog repo is a *Codex plugin* exposing Mog to Codex as MCP
 tools (e.g. `mog_browser_start`), driving a browser-visible Mog session. That is
-Codex calling Mog, not Codex hosting this panel.
+Codex calling Mog, not Codex hosting this project's panel.
 
-Consequences for this project as it stands:
+The current `main` branch now also contains the missing host-facing program:
 
-- It is a **standalone localhost app** you place beside Codex, sized for a narrow
-  side panel. It is not "inside" Codex.
-- Window management is the OS's job (snap it next to Codex), not the app's.
-- Codex and this app share state only through **the file on disk**. That is why
-  the file bridge keeps a `.bak` of the previous save and why `Verify` re-reads
-  the saved file with the headless engine.
+- `server/mcp/` provides the stdio MCP server, workbook tools, and the
+  `ui://mog-canvas/canvas.html` MCP Apps resource.
+- `plugins/mog-canvas/ui/dist` is a production component bundle; it does not
+  require the Vite development server at runtime.
+- `plugins/mog-canvas/` and `.agents/plugins/marketplace.json` package the
+  component and server as a repository-local Codex plugin.
+- `server/workbook-service.ts` gives the standalone HTTP bridge and MCP lane the
+  same containment, revision, backup, validation, and screenshot behavior.
+
+The standalone localhost app remains a useful fallback beside Codex. What is
+still unverified is the final host gate: the local protocol and Reference Host
+harnesses prove the plugin components, but the canvas has not yet been observed
+rendering and completing an edit/save/validate round trip inside the actual
+Codex desktop host. See `docs/CODEX-PLUGIN.md` for the installation boundary,
+host test, rollback, and current limitations.
 
 ## Capture limits
 
@@ -156,9 +165,9 @@ Two screenshot paths exist here and neither one is a picture of "the workbook":
   scroll position do not affect it, but nothing outside that range is captured.
 - **Page capture** — `scripts/browser-smoke.mjs` takes a CDP screenshot of the
   browser viewport, which it fixes at 520x900 (the side-panel shape this app
-  targets). It shows only what fits there. That same fixed geometry is why the
-  smoke test's grid click is expressed in raw pixels: at another window size it
-  selects a different cell, so the smoke lane says nothing about wider layouts.
+  targets). It shows only what fits there, so the smoke lane says nothing about
+  wider layouts. The edit check uses one pixel click only to focus the grid,
+  then deterministic keyboard navigation to select the target cell.
 
 ## Not exercised
 

@@ -42,14 +42,11 @@ Evidence produced by runs in this repo (commands in parentheses):
 ## Install (user-run step)
 
 These commands change Codex's user-level configuration, so they are left
-for you to run. Point them at the checkout that contains this plugin —
-while the RC branch is unmerged that is the RC worktree
-(`C:\Users\MarkMelanson\Documents\mog-codex-canvas-plugin-rc`); after a
-merge to `main` it is the main checkout
+for you to run. Point them at the current `main` checkout
 (`C:\Users\MarkMelanson\Documents\Mog-Codex-Live-XLSX`). From anywhere:
 
 ```bash
-codex plugin marketplace add "C:\Users\MarkMelanson\Documents\mog-codex-canvas-plugin-rc"
+codex plugin marketplace add "C:\Users\MarkMelanson\Documents\Mog-Codex-Live-XLSX"
 ```
 
 The checkout root is the marketplace root: Codex discovers
@@ -72,10 +69,8 @@ with an absolute path — the launcher is self-locating, so this is the only
 path it needs:
 
 ```bash
-codex mcp add mog-canvas -- node "C:\Users\MarkMelanson\Documents\mog-codex-canvas-plugin-rc\plugins\mog-canvas\bin\mcp-launch.mjs"
+codex mcp add mog-canvas -- node "C:\Users\MarkMelanson\Documents\Mog-Codex-Live-XLSX\plugins\mog-canvas\bin\mcp-launch.mjs"
 ```
-
-(Swap in the main checkout's path after the RC branch merges.)
 
 Either way the server confines itself to `<repo>\workbooks` (override with
 `MOG_WORKBOOK_DIR`) and serves the built UI from
@@ -108,7 +103,7 @@ Report results against these numbered steps — "works in Codex" means step
 ## Rollback
 
 ```bash
-codex plugin remove mog-canvas
+codex plugin remove mog-canvas@mog-codex-canvas
 codex plugin marketplace remove mog-codex-canvas
 ```
 
@@ -166,4 +161,6 @@ workbook root, and installs of local marketplaces do not copy files.
 - **`list_workbooks` discloses the workbook root's absolute path** in its
   result (matching the dev app's `/api/config`). Acceptable for a local,
   single-user setup; rework it before any multi-user exposure.
-- **Screenshots capture a fixed `A1:H30`** of the active sheet.
+- **The canvas Screenshot button captures `A1:H30`** of the active sheet.
+  The model-facing `screenshot_workbook` tool accepts an optional range and
+  uses `A1:H30` only as its default.
