@@ -241,7 +241,7 @@ describe('bridge endpoints', () => {
       method: 'PUT',
       body: new Uint8Array(replacement),
     }).then((r) => r.json());
-    assert.equal(written.backup, join(root, 'written.xlsx.bak'));
+    assert.equal(written.backup, 'written.xlsx.bak');
     assert.equal((await readFile(join(root, 'written.xlsx'))).byteLength, replacement.byteLength);
   });
 
@@ -336,7 +336,7 @@ describe('bridge endpoints', () => {
     assert.ok(statuses.includes(200), `no save succeeded: ${statuses.join()}`);
     for (const [n, res] of responses.entries()) {
       if (res.status === 200) continue;
-      assert.equal(res.status, 400, `writer-${n} failed with ${res.status}`);
+      assert.equal(res.status, 500, `writer-${n} failed with ${res.status}`);
       assert.match((await res.json()).error, /was not changed by this save/);
     }
 

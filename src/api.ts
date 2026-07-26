@@ -17,7 +17,7 @@ export interface SheetSummary {
 }
 
 export interface ValidationReport {
-  readonly file: string;
+  readonly name: string;
   readonly bytes: number;
   readonly modified: string;
   readonly sheetNames: readonly string[];
@@ -51,12 +51,12 @@ export function writeWorkbook(
   }).then((response) => unwrap<{ versionId?: string; backup: string | null }>(response));
 }
 
-export function writeScreenshot(name: string, bytes: Uint8Array): Promise<{ file: string }> {
+export function writeScreenshot(name: string, bytes: Uint8Array): Promise<{ name: string }> {
   return fetch(`/api/screenshot?path=${encodeURIComponent(name)}`, {
     method: 'PUT',
     headers: { 'content-type': 'image/png' },
     body: bytes as BodyInit,
-  }).then((response) => unwrap<{ file: string }>(response));
+  }).then((response) => unwrap<{ name: string }>(response));
 }
 
 export function validateWorkbook(name: string): Promise<ValidationReport> {
