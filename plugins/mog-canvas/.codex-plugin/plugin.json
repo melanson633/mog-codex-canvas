@@ -1,0 +1,27 @@
+{
+  "name": "mog-canvas",
+  "version": "0.1.0",
+  "description": "Open, edit, save, and validate local XLSX workbooks in a real Mog spreadsheet canvas rendered as an MCP App inside Codex.",
+  "author": {
+    "name": "Mark Melanson"
+  },
+  "interface": {
+    "displayName": "Mog Canvas",
+    "shortDescription": "Live Mog spreadsheet canvas for local XLSX workbooks.",
+    "longDescription": "Mog Canvas exposes an MCP server whose tools open authorized workbooks from a confined local root, render them in the real @mog-sdk/spreadsheet-app canvas via an MCP Apps UI resource, and save edits back to disk with revision checks, automatic backups, and headless validation. Workbook bytes travel only through MCP tools; engine assets are served from a loopback-only asset host.",
+    "developerName": "Mark Melanson",
+    "category": "Productivity",
+    "capabilities": [
+      "Open local XLSX workbooks in a live Mog canvas",
+      "Edit and save with revision-conflict protection",
+      "Screenshot and headless save validation"
+    ],
+    "defaultPrompt": [
+      "List the workbooks I can open",
+      "Open sample.xlsx in the Mog canvas",
+      "Save my workbook and validate it"
+    ]
+  },
+  "mcpServers": "./.mcp.json",
+  "apps": "./.app.json"
+}

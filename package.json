@@ -12,7 +12,10 @@
     "test": "node --test \"server/*.test.ts\" \"scripts/*.test.mjs\"",
     "headless": "node scripts/headless-edit.mjs",
     "verify": "node scripts/verify.mjs",
-    "smoke": "node scripts/browser-smoke.mjs"
+    "smoke": "node scripts/browser-smoke.mjs",
+    "check:mcp": "node scripts/mcp-check.mjs",
+    "check:app": "node scripts/mcp-app-smoke.mjs",
+    "check:plugin": "node scripts/plugin-check.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "^1.7.5",
