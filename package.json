@@ -6,6 +6,8 @@
   "description": "Standalone local companion app: a live, editable Mog XLSX canvas to run beside the Codex desktop app.",
   "scripts": {
     "dev": "vite",
+    "build:mcp-app": "vite build --config vite.mcp-app.config.ts",
+    "mcp": "node server/mcp/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"server/*.test.ts\" \"scripts/*.test.mjs\"",
     "headless": "node scripts/headless-edit.mjs",
@@ -13,10 +15,13 @@
     "smoke": "node scripts/browser-smoke.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.5",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@mog-sdk/sdk": "^0.10.5",
     "@mog-sdk/spreadsheet-app": "^0.10.5",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

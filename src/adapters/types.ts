@@ -38,6 +38,13 @@ export interface OpenRequest {
   readonly fileName: string;
   readonly bytes: Uint8Array;
   readonly colorScheme: ColorScheme;
+  /**
+   * Base URL the engine loads its wasm/fonts/static files from. Defaults to
+   * "/mog/" on the document origin (the dev server). The MCP Apps component
+   * overrides it with an absolute URL because its document lives on a
+   * host-chosen sandbox origin while the assets live on the loopback host.
+   */
+  readonly assetBase?: string;
 }
 
 /** What the canvas is allowed to ask the host (this app) to do. */

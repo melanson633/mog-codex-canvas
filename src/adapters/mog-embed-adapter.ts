@@ -29,14 +29,24 @@ import type {
 
 export type EmbedModule = typeof import('@mog-sdk/spreadsheet-app');
 
-/** Served from public/mog/ by scripts/sync-mog-assets.mjs. */
-const ASSETS = {
-  wasmBaseUrl: '/mog/',
-  fontBaseUrl: '/mog/assets/',
-  staticBaseUrl: '/mog/',
-} as const;
+/**
+ * Engine asset locations relative to one base URL. The default "/mog/" is the
+ * dev server's mount (server/mog-assets.ts); the MCP component passes an
+ * absolute loopback URL instead. The layout under the base is identical.
+ */
+function assetsFor(base: string = '/mog/') {
+  return {
+    wasmBaseUrl: base,
+    fontBaseUrl: `${base}assets/`,
+    staticBaseUrl: base,
+  } as const;
+}
 
-const HOST_ACTOR = { actorId: 'codex-companion-host', kind: 'host', displayName: 'Companion' } as const;
+const SCREENSHOT_ACTOR = {
+  actorId: 'codex-companion-user',
+  kind: 'user',
+  displayName: 'Companion',
+} as const;
 
 export const MOG_EMBED_PROBE: AdapterProbe = {
   id: 'mog-embed',
@@ -59,7 +69,7 @@ export function createMogEmbedAdapter(embed: EmbedModule): CanvasAdapter {
 
     async open(container, request, host): Promise<CanvasSession> {
       const runtime = await embed.createSpreadsheetRuntime({
-        assets: ASSETS,
+        assets: assetsFor(request.assetBase),
         host: {
           // The host holds the file; the canvas keeps no copy of its own.
           persistenceMode: 'host-owned-ephemeral',
@@ -220,7 +230,10 @@ function session(
 
     screenshot(range) {
       const sheet = attachment.view().getActiveSheet();
-      return workbook.captureScreenshot(HOST_ACTOR, sheet.sheetName ?? sheet.sheetId, range);
+      // A `kind: "user"` actor resolves without a host authority adapter;
+      // privileged kinds ("host", "agent", …) are refused unless one is
+      // registered, and this shell does not register one.
+      return workbook.captureScreenshot(SCREENSHOT_ACTOR, sheet.sheetName ?? sheet.sheetId, range);
     },
 
     activeSheetName() {
