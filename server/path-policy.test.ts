@@ -64,6 +64,20 @@ describe('canonicalizeRoot', () => {
   it('refuses a root that does not exist', () => {
     assert.throws(() => canonicalizeRoot(join(base, 'missing')), /Workbook root does not exist/);
   });
+
+  // Targets are canonicalized with fsPromises.realpath (native semantics), so
+  // the root must be too. The difference is visible on Windows when the
+  // configured root contains an 8.3 short name (e.g. %TEMP% under
+  // C:\Users\MARKME~1\...): only the native call expands it, and a short-form
+  // root makes every expanded target look like an escape.
+  it('agrees with the native realpath used for targets', async () => {
+    const raw = await mkdtemp(join(tmpdir(), 'mog-root-form-'));
+    try {
+      assert.equal(canonicalizeRoot(raw), await realpath(raw));
+    } finally {
+      await rm(raw, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('resolveReadTarget', () => {

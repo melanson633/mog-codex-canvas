@@ -35,7 +35,12 @@ const DRIVE_RELATIVE = /^[a-zA-Z]:/;
 export function canonicalizeRoot(root: string): string {
   const resolved = resolve(root);
   try {
-    return realpathSync(resolved);
+    // .native, to match fsPromises.realpath (documented as native semantics):
+    // targets are canonicalized with the latter, and on Windows only the
+    // native call expands 8.3 short names (C:\Users\MARKME~1\...). A root kept
+    // in short form while targets expand makes every real file look like an
+    // escape.
+    return realpathSync.native(resolved);
   } catch {
     throw new Error(`Workbook root does not exist: ${resolved}`);
   }
