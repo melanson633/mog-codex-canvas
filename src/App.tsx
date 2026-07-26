@@ -56,14 +56,23 @@ export function App() {
         if (stale) return;
         setProbe(adapter.probe);
 
-        const bytes = await readWorkbook(file);
+        const { bytes, revision } = await readWorkbook(file);
         if (stale) return;
+
+        // The revision this canvas last saw on disk. Saves send it as the
+        // expected base; a concurrent writer makes the save fail with a 409
+        // instead of silently overwriting their work.
+        let baseRevision = revision;
 
         const session = await adapter.open(
           container,
           { fileName: file, bytes, colorScheme: 'system' },
           {
-            persist: async (nextBytes) => writeWorkbook(file, nextBytes),
+            persist: async (nextBytes) => {
+              const saved = await writeWorkbook(file, nextBytes, baseRevision);
+              baseRevision = saved.versionId;
+              return saved;
+            },
             onDirtyChange: setDirty,
             onStatus: setStatus,
             onError: (cause) =>

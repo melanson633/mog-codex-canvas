@@ -34,21 +34,35 @@ export function getConfig(): Promise<BridgeConfig> {
   return fetch('/api/config').then((response) => unwrap<BridgeConfig>(response));
 }
 
-export async function readWorkbook(name: string): Promise<Uint8Array> {
+export async function readWorkbook(
+  name: string,
+): Promise<{ bytes: Uint8Array; revision: string }> {
   const response = await fetch(`/api/workbook?path=${encodeURIComponent(name)}`);
   if (!response.ok) throw new Error(`Could not read ${name} (${response.status})`);
-  return new Uint8Array(await response.arrayBuffer());
+  return {
+    bytes: new Uint8Array(await response.arrayBuffer()),
+    revision: response.headers.get('x-workbook-revision') ?? '',
+  };
 }
 
+/**
+ * Saves against the revision the caller last saw. A stale revision is refused
+ * by the bridge (409, code "revision-conflict") and the attempted bytes are
+ * preserved server-side — the caller decides what to do, never the bridge.
+ */
 export function writeWorkbook(
   name: string,
   bytes: Uint8Array,
-): Promise<{ versionId?: string; backup: string | null }> {
-  return fetch(`/api/workbook?path=${encodeURIComponent(name)}`, {
+  expectedRevision?: string,
+): Promise<{ versionId: string; backup: string | null }> {
+  const expected = expectedRevision
+    ? `&expectedRevision=${encodeURIComponent(expectedRevision)}`
+    : '';
+  return fetch(`/api/workbook?path=${encodeURIComponent(name)}${expected}`, {
     method: 'PUT',
     headers: { 'content-type': 'application/octet-stream' },
     body: bytes as BodyInit,
-  }).then((response) => unwrap<{ versionId?: string; backup: string | null }>(response));
+  }).then((response) => unwrap<{ versionId: string; backup: string | null }>(response));
 }
 
 export function writeScreenshot(name: string, bytes: Uint8Array): Promise<{ name: string }> {
