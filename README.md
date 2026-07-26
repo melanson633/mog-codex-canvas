@@ -1,15 +1,17 @@
 # Mog Codex Live XLSX
 
-A standalone localhost app that runs a **live, editable Mog spreadsheet canvas**
-over a real `.xlsx` file on disk. It is sized for a narrow window you park beside
-the Codex desktop app.
+A **live, editable Mog spreadsheet canvas** over real `.xlsx` files on disk,
+in two forms that share one workbook service and one security policy:
 
-It runs **beside** Codex, not inside it. Nothing here is a Codex plugin or MCP
-app, and opening it next to Codex does not make it one — see
-[Codex integration](#codex-integration).
+1. **A Codex plugin** (`plugins/mog-canvas/`) — an MCP server plus an MCP
+   Apps UI resource that renders the canvas inside a host-controlled
+   sandboxed iframe. Installation and status: see
+   [`docs/CODEX-PLUGIN.md`](docs/CODEX-PLUGIN.md).
+2. **A standalone dev companion app** — a Vite dev server you park in a
+   narrow browser window beside Codex.
 
-The canvas is the real thing: `@mog-sdk/spreadsheet-app`, the same engine and UI
-as the Mog VS Code/Cursor extension. No mock grid.
+The canvas is the real thing in both: `@mog-sdk/spreadsheet-app`, the same
+engine and UI Mog ships everywhere else. No mock grid.
 
 ## Run it
 
@@ -37,9 +39,14 @@ loads are cached.
 | --- | --- |
 | `npm run dev` | Vite dev server: the canvas, the file bridge, the Mog runtime assets |
 | `npm run headless` | Headless SDK lane — edit, save, re-open, validate, screenshot |
-| `npm test` | 64 unit tests, no server: path containment, crash-safe writes, bridge endpoints, agent lane |
+| `npm test` | 65 unit tests, no server: path containment, crash-safe writes, bridge endpoints, agent lane |
 | `npm run verify` | 25 checks, no browser: engine round-trip + asset routing + file bridge + adapter resolution |
 | `npm run smoke` | 9 checks in a headless browser: does the canvas mount, render, and save to disk |
+| `npm run build:mcp-app` | Production build of the MCP Apps canvas component (deterministic; no dev server at runtime) |
+| `npm run mcp` | The Mog Canvas MCP server over stdio |
+| `npm run check:mcp` | 13 MCP protocol checks: tools, ui resource + CSP metadata, containment, stale saves |
+| `npm run check:app` | 11 in-iframe checks: real canvas under a sandboxed iframe + MCP Apps host, edit/save/screenshot |
+| `npm run check:plugin` | 5 plugin package checks: manifests match Codex's ingestion schema, launcher boots the server |
 | `npm run typecheck` | `tsc --noEmit` |
 
 `npm run smoke` needs `npm run dev` already running in another shell. It drives
@@ -52,10 +59,12 @@ built for — and that size is load-bearing: the edit check clicks the grid at a
 fixed pixel offset, and `workbooks/browser-smoke.png` is a capture of that
 viewport only, not of the whole sheet. Wider layouts are not covered.
 
-There is deliberately **no `build` script**. The app is a dev-server companion:
-the WASM routing that makes the canvas work (`server/mog-assets.ts`) and the file
-bridge (`server/file-bridge.ts`) are both dev-server middleware. A static bundle
-would need a separate host process, which nothing here has been verified against.
+The dev app itself has no `build` script — its WASM routing
+(`server/mog-assets.ts`) and file bridge (`server/file-bridge.ts`) are
+dev-server middleware. The production build belongs to the MCP lane:
+`npm run build:mcp-app` bundles the canvas component, and the MCP server's
+own loopback asset host serves it plus the engine's WASM and fonts — no
+Vite process at runtime.
 
 ## What works
 
@@ -123,45 +132,36 @@ the two `@mog-sdk` dependencies are used in deliberately different places:
 
 ## Codex integration
 
-**This app is not a Codex integration.** It is a Vite dev server you point a
-browser at; parking that browser next to Codex is window management, not
-integration.
+The Codex integration is the plugin in `plugins/mog-canvas/`:
 
-That is a limit of *this app*, not of Codex. Codex plugins ship MCP servers, and
-MCP apps do have custom UI surfaces — an installed, OpenAI-curated Codex plugin
-on this machine renders its own dashboard UI into an artifact window, styled
-against Codex's own surface tokens (evidence in
-[`docs/API-EVIDENCE.md`](docs/API-EVIDENCE.md)). So "a Mog canvas rendered inside
-Codex" is not ruled out. It is simply a different program from this one:
+- **An MCP server** (`server/mcp/`) exposing the workbook tools —
+  list/open/fetch-bytes/save/validate/screenshot/close — confined to the
+  workbook root, with revision-conflict protection on every save.
+- **An MCP Apps UI resource** (`ui://mog-canvas/canvas.html`) whose bundle
+  mounts the real Mog canvas inside the host's sandboxed iframe. Workbook
+  bytes travel only through MCP tools; the engine's WASM and fonts come
+  from a loopback-only asset host the server owns.
+- **A plugin package + repo marketplace manifest** so Codex can install it
+  from this checkout with its supported plugin mechanism.
 
-- **A plugin/MCP server, not dev-server middleware.** This app's disk access and
-  WASM routing are Vite dev plugins (`server/file-bridge.ts`,
-  `server/mog-assets.ts`) and there is deliberately no `build`, so there is no
-  artifact to hand a host.
-- **A host that will serve the runtime.** The embed fetches a ~41 MB WASM
-  compute core and its fonts over HTTP from URLs the host provides. Whether an
-  artifact-window surface can host that has **not** been tested here, and this
-  project does not claim it either way.
+What has and has not been proven, the install commands, the host test
+procedure, rollback, and the current Codex host gaps (MCP Apps rendering,
+`${CLAUDE_PLUGIN_ROOT}` interpolation) are all in
+[`docs/CODEX-PLUGIN.md`](docs/CODEX-PLUGIN.md). Until the plugin is
+installed and the canvas is seen rendering inside Codex, no such claim is
+made here.
 
-Separately, the Mog↔Codex integration that already exists runs the other
-direction: `plugins/mog` in the Mog repo exposes Mog *to* Codex as MCP tools.
-That is Codex driving Mog, not Codex hosting a Mog panel.
-
-Until someone builds the plugin, Codex and this app share exactly one thing —
-**the file on disk**. That is why `Verify` re-reads from disk and why every save
-keeps a `.bak`.
-
-Full evidence, including the exact published API surface and the undocumented
-friction: [`docs/API-EVIDENCE.md`](docs/API-EVIDENCE.md).
+Historical API evidence, including the exact published embed surface:
+[`docs/API-EVIDENCE.md`](docs/API-EVIDENCE.md).
 
 ## Recommended workflow
 
 Two lanes over one file. Pick per task, don't fight over it:
 
 1. **Human lane — live canvas.** For structural or judgement work: laying out a
-   schedule, eyeballing a variance, fixing a formula you need to *see*. Use this
-   app, or the Mog extension in Cursor/VS Code if you want the editor's own
-   panel. Hit `Save` when done.
+   schedule, eyeballing a variance, fixing a formula you need to *see*. Use the
+   canvas (dev app or, once host support lands, the plugin's panel) and hit
+   `Save` when done.
 2. **Agent lane — headless SDK.** For repeatable or bulk work: Codex/Claude edits
    the workbook through `@mog-sdk/sdk` (see `scripts/headless-edit.mjs`), then
    *validates* with `summarize()` and *screenshots* the range it touched. The
@@ -180,9 +180,14 @@ the canvas; agents edit headlessly.
 ```
 src/adapters/     adapter boundary + real embed adapter + honest fallback
 src/App.tsx       the shell: picker, save/verify/screenshot, status, canvas host
-server/file-bridge.ts   the only disk access: /api/config|workbook|validate|screenshot
-server/mog-assets.ts    serves the embed's WASM + fonts from node_modules
-scripts/          headless-edit / verify / browser-smoke (+ browser-executable)
+server/workbook-service.ts  shared workbook policy: containment, revisions, backups
+server/file-bridge.ts   dev-app disk access: /api/config|workbook|validate|screenshot
+server/mog-assets.ts    serves the embed's WASM + fonts from node_modules (dev)
+server/mcp/       the MCP server: tools, ui:// resource, loopback asset host
+plugins/mog-canvas/     the installable Codex plugin: manifests, launcher, ui dist
+.agents/plugins/marketplace.json  repo marketplace Codex installs from
+scripts/          harnesses: headless / verify / smoke / check:mcp|app|plugin
 workbooks/        the sandbox — the only readable/writable directory
+docs/CODEX-PLUGIN.md    plugin install, host test procedure, rollback, limitations
 docs/API-EVIDENCE.md    what was verified, and where the API actually stops
 ```
