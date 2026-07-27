@@ -176,3 +176,38 @@ body,
 .warn-text {
   color: #c2683a;
 }
+
+/* Compact mode (?compact=1): slim chrome for multi-pane embedding. */
+.app.compact .bar {
+  flex-direction: row;
+  align-items: center;
+  padding: 4px 6px;
+}
+
+.app.compact .bar-row {
+  flex: 0 1 auto;
+}
+
+.app.compact .bar-row:first-child {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.app.compact .bar-row button {
+  flex: none;
+  padding: 3px 8px;
+}
+
+.app.compact .meta .badge {
+  display: none;
+}
+
+.app.compact .foot {
+  display: none;
+}
+
+/* Hide the embed's ribbon and status bar; keep formula bar and sheet tabs. */
+.app.compact .canvas .mog-spreadsheet-app-theme-scope > .shrink-0.border-b:first-child,
+.app.compact .canvas .mog-spreadsheet-app-theme-scope > .shrink-0.border-t:last-child {
+  display: none;
+}

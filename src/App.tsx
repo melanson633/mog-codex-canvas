@@ -27,7 +27,10 @@ export function App() {
     getConfig()
       .then((next) => {
         setConfig(next);
-        setFile((current) => current ?? next.files[0]?.name ?? null);
+        // ?wb=<name> pins the initial workbook (used by compare.html panes).
+        const wanted = new URLSearchParams(window.location.search).get('wb');
+        const pinned = wanted && next.files.some((f) => f.name === wanted) ? wanted : null;
+        setFile((current) => current ?? pinned ?? next.files[0]?.name ?? null);
         if (next.files.length === 0) setStatus('no workbooks found');
       })
       .catch((cause) => setError(String(cause)));
@@ -136,9 +139,11 @@ export function App() {
     });
 
   const canEdit = probe?.capabilities.liveCanvas ?? false;
+  // ?compact=1 slims the chrome for multi-pane embedding (compare.html).
+  const compact = new URLSearchParams(window.location.search).get('compact') === '1';
 
   return (
-    <div className="app">
+    <div className={compact ? 'app compact' : 'app'}>
       <header className="bar">
         <div className="bar-row">
           <select
