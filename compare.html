@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mog Live XLSX — Compare</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #111827;
+      }
+      .split {
+        display: flex;
+        height: 100vh;
+        gap: 2px;
+      }
+      .split.vertical {
+        flex-direction: column;
+      }
+      .split iframe {
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+        border: 0;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="split" id="split"></div>
+    <script>
+      // /compare.html?left=<file>&mid=<file>&right=<file>&layout=vertical
+      // Each pane is the full app pinned to one workbook via ?wb=.
+      // Panes render in left/mid/right order; omit any of them (min 2 panes).
+      const params = new URLSearchParams(location.search);
+      const split = document.getElementById('split');
+      if (params.get('layout') === 'vertical') split.classList.add('vertical');
+      const names = ['left', 'mid', 'right'].filter((id) => params.get(id) !== null);
+      for (const id of names.length >= 2 ? names : ['left', 'right']) {
+        const frame = document.createElement('iframe');
+        frame.id = id;
+        frame.title = id + ' workbook';
+        const wb = params.get(id);
+        frame.src = wb ? '/?compact=1&wb=' + encodeURIComponent(wb) : '/?compact=1';
+        split.appendChild(frame);
+      }
+    </script>
+  </body>
+</html>
