@@ -24,6 +24,18 @@ After a successful save, the session advances to the new revision. If the workbo
 
 The live spreadsheet surface that owns interactive editing and computation while its host owns file access, persistence, and authorization.
 
+### Canvas Adapter
+
+The swappable boundary between the application shell and a concrete spreadsheet engine, so the engine behind a Mog Canvas can be replaced — or reported as missing — without changing the surrounding interface.
+
+Which adapter is in use is decided at runtime by actually loading the engine and checking its shape, not by inspecting a declared version. When the engine or its stylesheet fails to load, resolution yields an adapter that renders no grid and declares itself unavailable, rather than a partial canvas that looks real.
+
+### Adapter Probe
+
+The outcome of adapter resolution: whether a live interactive canvas is available, which capabilities it supports, and a human-readable reason.
+
+The reason text is written to be shown verbatim to the user. The probe is the only thing distinguishing a real canvas from a placeholder, so any display mode that suppresses it makes degradation invisible — a display mode may drop decorative chrome, but never the probe's failure reason.
+
 ### Reference Host
 
 A local test harness that implements the MCP Apps host contract closely enough to exercise the real application resource, sandbox, tool bridge, and user interaction without making claims about a specific production host.

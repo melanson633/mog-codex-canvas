@@ -202,7 +202,13 @@ body,
   display: none;
 }
 
-.app.compact .foot {
+/* Compact mode drops the workbook-root path, but never the adapter-failure
+   warning — a small pane is where a stub canvas is hardest to notice. */
+.app.compact .foot > span:not(.warn-text) {
+  display: none;
+}
+
+.app.compact .foot:not(:has(.warn-text)) {
   display: none;
 }
 
