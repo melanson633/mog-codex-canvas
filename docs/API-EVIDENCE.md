@@ -1,8 +1,9 @@
 # Mog embedding: what exists, what doesn't
 
 The Mog package and standalone-embed evidence below was verified on this
-machine on 2026-07-24. The Codex integration status was refreshed on
-2026-07-26 against the current `main` checkout.
+machine on 2026-07-24. The host integration status was refreshed on
+2026-07-26, and again on 2026-08-04 when Claude Code replaced Codex as the
+project's primary host.
 
 ## The reference clone was not available
 
@@ -144,17 +145,20 @@ The current `main` branch now also contains the missing host-facing program:
   `ui://mog-canvas/canvas.html` MCP Apps resource.
 - `plugins/mog-canvas/ui/dist` is a production component bundle; it does not
   require the Vite development server at runtime.
-- `plugins/mog-canvas/` and `.agents/plugins/marketplace.json` package the
-  component and server as a repository-local Codex plugin.
+- `plugins/mog-canvas/` and the marketplace manifests package the component and
+  server as a repository-local plugin.
 - `server/workbook-service.ts` gives the standalone HTTP bridge and MCP lane the
   same containment, revision, backup, validation, and screenshot behavior.
 
-The standalone localhost app remains a useful fallback beside Codex. What is
-still unverified is the final host gate: the local protocol and Reference Host
-harnesses prove the plugin components, but the canvas has not yet been observed
-rendering and completing an edit/save/validate round trip inside the actual
-Codex desktop host. See `docs/CODEX-PLUGIN.md` for the installation boundary,
-host test, rollback, and current limitations.
+The standalone localhost app remains a useful fallback beside the host.
+
+**Where the host gate stands now.** The Codex research above is history: this
+document was written while Codex was the intended host, and the gap it
+describes is a Codex gap. The project's primary host is now Claude Code, where
+the canvas *has* been observed rendering and completing an edit/save round
+trip. In Codex it still has not. See `docs/CLAUDE-CODE-PLUGIN.md` for the
+installation boundary, host test, rollback, and current limitations of both
+paths.
 
 ## Capture limits
 

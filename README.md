@@ -1,14 +1,14 @@
-# Mog Codex Live XLSX
+# Mog Live XLSX
 
 A **live, editable Mog spreadsheet canvas** over real `.xlsx` files on disk,
 in two forms that share one workbook service and one security policy:
 
-1. **A Codex plugin** (`plugins/mog-canvas/`) — an MCP server plus an MCP
-   Apps UI resource that renders the canvas inside a host-controlled
+1. **A Claude Code plugin** (`plugins/mog-canvas/`) — an MCP server plus an
+   MCP Apps UI resource that renders the canvas inside a host-controlled
    sandboxed iframe. Installation and status: see
-   [`docs/CODEX-PLUGIN.md`](docs/CODEX-PLUGIN.md).
+   [`docs/CLAUDE-CODE-PLUGIN.md`](docs/CLAUDE-CODE-PLUGIN.md).
 2. **A standalone dev companion app** — a Vite dev server you park in a
-   narrow browser window beside Codex.
+   narrow browser window beside Claude Code, or open in its Browser pane.
 
 The canvas is the real thing in both: `@mog-sdk/spreadsheet-app`, the same
 engine and UI Mog ships everywhere else. No mock grid.
@@ -33,7 +33,7 @@ npm install
 npm run dev            # http://127.0.0.1:5273
 ```
 
-Then snap the browser window next to Codex. Workbooks come from `workbooks/`
+Then snap the browser window next to Claude Code. Workbooks come from `workbooks/`
 (override with `MOG_WORKBOOK_DIR`); that directory is the only place the app can
 read or write.
 
@@ -59,7 +59,7 @@ loads are cached.
 | `npm run mcp` | The Mog Canvas MCP server over stdio |
 | `npm run check:mcp` | 13 MCP protocol checks: tools, ui resource + CSP metadata, containment, stale saves |
 | `npm run check:app` | 11 in-iframe checks: real canvas under a sandboxed iframe + MCP Apps host, edit/save/screenshot |
-| `npm run check:plugin` | 5 plugin package checks: manifests match Codex's ingestion schema, launcher boots the server |
+| `npm run check:plugin` | 6 plugin package checks: manifests match what Claude Code and Codex ingest, launcher boots the server |
 | `npm run typecheck` | `tsc --noEmit` |
 
 `npm run smoke` needs `npm run dev` already running in another shell. It drives
@@ -143,9 +143,9 @@ the two `@mog-sdk` dependencies are used in deliberately different places:
   import it bare, which Node's own export conditions resolve to that same native
   build.
 
-## Codex integration
+## Claude Code integration
 
-The Codex integration is the plugin in `plugins/mog-canvas/`:
+The host integration is the plugin in `plugins/mog-canvas/`:
 
 - **An MCP server** (`server/mcp/`) exposing the workbook tools —
   list/open/fetch-bytes/save/validate/screenshot/close — confined to the
@@ -154,15 +154,17 @@ The Codex integration is the plugin in `plugins/mog-canvas/`:
   mounts the real Mog canvas inside the host's sandboxed iframe. Workbook
   bytes travel only through MCP tools; the engine's WASM and fonts come
   from a loopback-only asset host the server owns.
-- **A plugin package + repo marketplace manifest** so Codex can install it
+- **A plugin package + marketplace manifest** so Claude Code can install it
   from this checkout with its supported plugin mechanism.
 
-What has and has not been proven, the install commands, the host test
-procedure, rollback, and the current Codex host gaps (MCP Apps rendering,
-`${CLAUDE_PLUGIN_ROOT}` interpolation) are all in
-[`docs/CODEX-PLUGIN.md`](docs/CODEX-PLUGIN.md). Until the plugin is
-installed and the canvas is seen rendering inside Codex, no such claim is
-made here.
+The canvas has been seen rendering inside Claude Code, edited there, and
+its edits confirmed on disk. The install commands, the numbered host test
+procedure behind that claim, rollback, and what remains host-dependent are
+in [`docs/CLAUDE-CODE-PLUGIN.md`](docs/CLAUDE-CODE-PLUGIN.md).
+
+This began as a Codex side-panel concept and the package still ships what
+Codex ingests, but that path has never been seen rendering and no claim is
+made for it — see the Codex section of that doc for the two upstream gaps.
 
 Historical API evidence, including the exact published embed surface:
 [`docs/API-EVIDENCE.md`](docs/API-EVIDENCE.md).
@@ -173,9 +175,9 @@ Two lanes over one file. Pick per task, don't fight over it:
 
 1. **Human lane — live canvas.** For structural or judgement work: laying out a
    schedule, eyeballing a variance, fixing a formula you need to *see*. Use the
-   canvas (dev app or, once host support lands, the plugin's panel) and hit
+   canvas — the dev app or the plugin's panel in Claude Code — and hit
    `Save` when done.
-2. **Agent lane — headless SDK.** For repeatable or bulk work: Codex/Claude edits
+2. **Agent lane — headless SDK.** For repeatable or bulk work: the agent edits
    the workbook through `@mog-sdk/sdk` (see `scripts/headless-edit.mjs`), then
    *validates* with `summarize()` and *screenshots* the range it touched. The
    screenshot is what makes an agent edit reviewable without opening the file.
@@ -197,10 +199,11 @@ server/workbook-service.ts  shared workbook policy: containment, revisions, back
 server/file-bridge.ts   dev-app disk access: /api/config|workbook|validate|screenshot
 server/mog-assets.ts    serves the embed's WASM + fonts from node_modules (dev)
 server/mcp/       the MCP server: tools, ui:// resource, loopback asset host
-plugins/mog-canvas/     the installable Codex plugin: manifests, launcher, ui dist
-.agents/plugins/marketplace.json  repo marketplace Codex installs from
+plugins/mog-canvas/     the installable plugin: manifests, launcher, ui dist
+.claude-plugin/marketplace.json   repo marketplace Claude Code installs from
+.agents/plugins/marketplace.json  the same plugin, for Codex (secondary)
 scripts/          harnesses: headless / verify / smoke / check:mcp|app|plugin
 workbooks/        the sandbox — the only readable/writable directory
-docs/CODEX-PLUGIN.md    plugin install, host test procedure, rollback, limitations
+docs/CLAUDE-CODE-PLUGIN.md  plugin install, host test procedure, rollback, limitations
 docs/API-EVIDENCE.md    what was verified, and where the API actually stops
 ```

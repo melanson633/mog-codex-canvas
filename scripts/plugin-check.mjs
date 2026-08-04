@@ -1,23 +1,27 @@
 /**
- * Codex plugin package check.
+ * Plugin package check.
  *
  *   node scripts/plugin-check.mjs
  *
  * Verifies the installable plugin package under plugins/mog-canvas plus the
- * repo marketplace manifest, against the shapes Codex 0.144.0 actually
- * ingests (extracted from its bundled plugin-creator skill and validator):
+ * marketplace manifests. The package targets two hosts from one directory:
+ * Claude Code (primary) reads .claude-plugin/, Codex (secondary) reads the
+ * same plugin.json plus its own marketplace at .agents/plugins/.
  *
  *   1. plugin.json: required fields, strict semver, companion paths exist
  *   2. .mcp.json: only the mcpServers key; entries have command + args
  *   3. .app.json: app objects carry only id and category
- *   4. marketplace.json at .agents/plugins/: source path resolves to the
+ *   4. marketplace.json at .claude-plugin/: what Claude Code installs from
+ *   5. marketplace.json at .agents/plugins/: source path resolves to the
  *      plugin dir relative to the repo root (the marketplace root)
- *   5. the launcher boots the real MCP server from an unrelated working
+ *   6. the launcher boots the real MCP server from an unrelated working
  *      directory: MCP initialize succeeds and tools/list returns the full
  *      tool surface
  *
  * Exit code 0 only if every check passes. This validates the package, not
- * any particular Codex host behavior.
+ * any particular host's rendering behavior. `claude plugin validate` is the
+ * authority on the Claude Code shapes; these checks pin what this repo needs
+ * to stay true for both hosts at once.
  */
 import { readFile, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -53,7 +57,7 @@ async function readJson(path) {
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 await check('plugin.json follows the ingestion contract', async () => {
-  const manifest = await readJson(join(pluginRoot, '.codex-plugin', 'plugin.json'));
+  const manifest = await readJson(join(pluginRoot, '.claude-plugin', 'plugin.json'));
   for (const field of ['name', 'version', 'description']) {
     expect(typeof manifest[field] === 'string' && manifest[field].length > 0, `missing ${field}`);
   }
@@ -91,8 +95,9 @@ await check('.mcp.json declares only mcpServers with runnable entries', async ()
   expect(server.command === 'node', `command is ${server.command}`);
   expect(Array.isArray(server.args) && server.args.length > 0, 'args missing');
   // The arg uses the cross-CLI plugin-root placeholder; the file it points at
-  // must exist inside the plugin. (Codex does not interpolate it yet —
-  // openai/codex#19582 — which is why the launcher also works by absolute path.)
+  // must exist inside the plugin.
+  // Claude Code interpolates ${CLAUDE_PLUGIN_ROOT}; Codex does not yet
+  // (openai/codex#19582), which is why the launcher also works by absolute path.
   const relative = server.args[0].replace('${CLAUDE_PLUGIN_ROOT}/', '');
   expect(relative !== server.args[0], 'args[0] should be anchored at ${CLAUDE_PLUGIN_ROOT}');
   await access(join(pluginRoot, relative));
@@ -114,7 +119,19 @@ await check('.app.json app objects carry only id and category', async () => {
   return `id=${app.id}`;
 });
 
-await check('marketplace.json points at the plugin relative to the repo root', async () => {
+await check('.claude-plugin/marketplace.json is what Claude Code installs from', async () => {
+  const manifest = await readJson(join(repoRoot, '.claude-plugin', 'marketplace.json'));
+  expect(typeof manifest.name === 'string' && /^[A-Za-z0-9_-]+$/.test(manifest.name), 'marketplace name invalid');
+  expect(typeof manifest.owner?.name === 'string' && manifest.owner.name.length > 0, 'owner.name missing');
+  const entry = manifest.plugins?.find((p) => p.name === 'mog-canvas');
+  expect(entry, 'no mog-canvas entry');
+  // Claude Code takes a bare relative path here, not Codex's {source, path} object.
+  expect(entry.source === './plugins/mog-canvas', `source is ${JSON.stringify(entry.source)}`);
+  await access(join(repoRoot, 'plugins', 'mog-canvas', '.claude-plugin', 'plugin.json'));
+  return `${manifest.name} → ${entry.source}`;
+});
+
+await check('.agents/plugins/marketplace.json points at the plugin relative to the repo root', async () => {
   const manifest = await readJson(join(repoRoot, '.agents', 'plugins', 'marketplace.json'));
   expect(typeof manifest.name === 'string' && /^[A-Za-z0-9_-]+$/.test(manifest.name), 'marketplace name invalid');
   expect(manifest.name !== 'personal', 'must not collide with the default personal marketplace');
@@ -124,7 +141,7 @@ await check('marketplace.json points at the plugin relative to the repo root', a
   // Relative source paths resolve against the marketplace root — the
   // directory containing .agents/ — which for this repo is the repo root.
   expect(entry.source?.path === './plugins/mog-canvas', `source.path is ${entry.source?.path}`);
-  await access(join(repoRoot, 'plugins', 'mog-canvas', '.codex-plugin', 'plugin.json'));
+  await access(join(repoRoot, 'plugins', 'mog-canvas', '.claude-plugin', 'plugin.json'));
   expect(['NOT_AVAILABLE', 'AVAILABLE', 'INSTALLED_BY_DEFAULT'].includes(entry.policy?.installation), 'bad installation policy');
   expect(['ON_INSTALL', 'ON_USE'].includes(entry.policy?.authentication), 'bad authentication policy');
   expect(typeof entry.category === 'string' && entry.category.length > 0, 'category missing');

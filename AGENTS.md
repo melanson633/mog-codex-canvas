@@ -1,7 +1,7 @@
 # Working in this repo
 
 A live Mog spreadsheet canvas over real `.xlsx` files on disk, in two forms —
-a Codex plugin (`plugins/mog-canvas/`) and a standalone dev app — sharing one
+a Claude Code plugin (`plugins/mog-canvas/`) and a standalone dev app — sharing one
 workbook service and one security policy. Read [`README.md`](README.md) first
 for what the project is; this file is how to change it without breaking the
 parts that are load-bearing.
@@ -89,9 +89,12 @@ resolution the bare specifier types as the browser WASM build, whose
 This repo separates **verified** from **assumed**, and that distinction is the
 point rather than a formality. Keep it:
 
-- Claim only what a named command actually exercised. `docs/CODEX-PLUGIN.md`
-  states plainly that nothing has been seen rendering inside the Codex host —
-  do not soften that until step 4 of its host test procedure passes.
+- Claim only what a named command actually exercised, and say which kind of
+  evidence you have. `docs/CLAUDE-CODE-PLUGIN.md` keeps harness results and
+  host observation in separate sections on purpose: the Claude Code rendering
+  gate passed by being *seen*, not by a command, and the Codex path has never
+  passed at all. Do not merge the two, and do not soften the Codex status
+  until step 4 of the host test procedure passes there.
 - When something is derived from documentation rather than executed, say so.
   The Node floor above is derived; nothing has run below Node 24 on this
   machine.
@@ -114,8 +117,8 @@ and the containment doc above. Do not assume a POSIX shell.
 - [`docs/solutions/`](docs/solutions/) — durable learnings, one per solved
   problem, grouped by kind. Check here before re-debugging something; add to
   it after solving something non-obvious.
-- [`docs/CODEX-PLUGIN.md`](docs/CODEX-PLUGIN.md) — plugin install, host test
-  procedure, rollback, and current Codex host gaps.
+- [`docs/CLAUDE-CODE-PLUGIN.md`](docs/CLAUDE-CODE-PLUGIN.md) — plugin install,
+  host test procedure, rollback, and the secondary Codex path's gaps.
 - [`docs/API-EVIDENCE.md`](docs/API-EVIDENCE.md) — a historical record of what
   was verified and where the published API actually stops. It is evidence, not
   setup instructions.

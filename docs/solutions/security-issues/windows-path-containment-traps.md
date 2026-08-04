@@ -47,4 +47,4 @@ Three distinct ways realpath-based path containment broke (or was bypassed) on W
 ## Related Issues
 
 - docs/solutions/design-patterns/crash-safe-workbook-saves.md — the staged-write pipeline these checks guard
-- docs/solutions/architecture-patterns/validating-mog-mcp-apps-without-overclaiming-codex-host-support.md — the path-policy rules as shipped
+- docs/solutions/architecture-patterns/validating-mog-mcp-apps-without-overclaiming-host-support.md — the path-policy rules as shipped
