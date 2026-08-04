@@ -35,8 +35,10 @@ Evidence produced by runs in this repo (commands in parentheses):
 - The production UI bundle built once: `npm run build:mcp-app`
   (emits `plugins/mog-canvas/ui/dist`; no dev server is involved at
   runtime).
-- Node 24+ on `PATH` as `node` (the server entry is TypeScript run via
-  Node's type stripping).
+- Node on `PATH` as `node`, at the version the project requires — 22.18.0+,
+  or 23.6.0+ on the 23.x line (the server entry is TypeScript run via Node's
+  type stripping, which is unflagged only from those releases). This matches
+  `engines.node` in `package.json`; see the README for the full rationale.
 - Codex CLI 0.144.0 or later.
 
 ## Install (user-run step)
