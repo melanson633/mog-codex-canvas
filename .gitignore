@@ -1,5 +1,16 @@
 node_modules/
 dist/
+
+# workbooks/ is the live working sandbox — the only directory the app reads or
+# writes. Real workbook data lands here during normal use and must not be
+# committed. sample.xlsx is the one tracked fixture.
 workbooks/**/*.bak
 workbooks/**/*.png
 workbooks/**/*.staged
+workbooks/**/*.xlsx
+!workbooks/sample.xlsx
+
+# Refused-save siblings parked next to a workbook on revision conflict
+# (server/workbook-service.ts writes `<name>.conflict-<stamp>.xlsx`). Listed
+# after the negation above so a conflict copy of the sample stays ignored.
+workbooks/**/*.conflict-*.xlsx

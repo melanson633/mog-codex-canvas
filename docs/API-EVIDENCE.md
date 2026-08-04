@@ -6,11 +6,12 @@ machine on 2026-07-24. The Codex integration status was refreshed on
 
 ## The reference clone was not available
 
-The brief pointed at `C:/Users/MarkMelanson/Documents/mog` (read-only reference,
-specifically `integrations/vscode/mog-xlsx-editor` and `@mog-sdk/node`). That
-path **does not exist on this machine** — confirmed with both the Bash and
-PowerShell tools; the only `mog`-named directory under `Documents` is this
-project. So the reference material came from sources that do exist:
+The brief pointed at a local read-only clone of the Mog monorepo, expected in a
+sibling directory beside this project and named `mog` — specifically for
+`integrations/vscode/mog-xlsx-editor` and `@mog-sdk/node`. **No such clone
+existed on the machine** — confirmed with both the Bash and PowerShell tools;
+the only `mog`-named directory in that location was this project itself. So the
+reference material came from sources that do exist:
 
 | Source | What it gave |
 | --- | --- |

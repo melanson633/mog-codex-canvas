@@ -4,6 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Standalone local companion app: a live, editable Mog XLSX canvas to run beside the Codex desktop app.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18.0 <23.0.0 || >=23.6.0"
+  },
   "scripts": {
     "dev": "vite",
     "build:mcp-app": "vite build --config vite.mcp-app.config.ts",
