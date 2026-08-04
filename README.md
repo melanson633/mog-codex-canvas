@@ -15,6 +15,12 @@ engine and UI Mog ships everywhere else. No mock grid.
 
 ## Run it
 
+Requires **Node 22.18.0 or newer** (on the 23.x line, 23.6.0+). The server entry
+and its tests are TypeScript run directly by Node, which needs a release where
+type stripping is on without a flag — that landed in 22.18.0 and 23.6.0, so
+23.0–23.5 will not work. `npm test` also passes glob patterns to `node --test`,
+which needs 21.0.0+; the stripping requirement is the binding one.
+
 ```bash
 npm install
 npm run dev            # http://127.0.0.1:5273
