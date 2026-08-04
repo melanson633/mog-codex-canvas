@@ -13,6 +13,13 @@ in two forms that share one workbook service and one security policy:
 The canvas is the real thing in both: `@mog-sdk/spreadsheet-app`, the same
 engine and UI Mog ships everywhere else. No mock grid.
 
+> **Independent project.** This is a personal project built on Mog's publicly
+> published SDK. It is not affiliated with, endorsed by, or supported by
+> Fundamental Research Labs. "Mog" is their product name, used here only to
+> describe what this integrates with. The `@mog-sdk/*` packages are theirs and
+> carry their own Apache-2.0 license; the MIT license in this repo covers only
+> the code written here.
+
 ## Run it
 
 Requires **Node 22.18.0 or newer** (on the 23.x line, 23.6.0+). The server entry
