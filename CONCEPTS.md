@@ -18,6 +18,12 @@ A server-managed handle for one opened workbook that binds subsequent operations
 
 After a successful save, the session advances to the new revision. If the workbook changes outside the session first, the save is refused and the attempted work is preserved separately rather than overwriting the newer file.
 
+### Value Fidelity
+
+Agreement between the values a spreadsheet engine computes for a workbook and the results the workbook itself already records for those same formulas.
+
+It is a separate property from durability and from identity: a save can be non-torn, fully flushed, and matched to the expected Workbook Revision while still carrying values the engine got wrong. Only the file's own recorded results are an independent reference — re-reading a value back through the engine that produced it merely confirms the engine agrees with itself.
+
 ## Host validation
 
 ### Mog Canvas
