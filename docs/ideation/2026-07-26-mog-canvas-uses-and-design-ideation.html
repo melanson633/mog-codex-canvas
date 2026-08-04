@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ideation: Mog Canvas — Functional Uses and Experience Design</title>
+<style>
+  :root {
+    --bg: #fbfaf8;
+    --surface: #ffffff;
+    --surface-2: #f4f2ee;
+    --text: #1c1b19;
+    --text-muted: #5d5a54;
+    --line: #e2ded6;
+    --line-strong: #c9c3b8;
+    --accent: #8a4b2a;
+    --accent-soft: #f6ece4;
+    --accent-text: #6d3a1f;
+    --ok: #2f6b45;
+    --ok-soft: #e8f2ea;
+    --warn: #96601a;
+    --warn-soft: #f8efe0;
+    --danger: #a33a2c;
+    --danger-soft: #f8e9e6;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --dgm-bg: #ffffff;
+    --dgm-line: #a9a297;
+    --dgm-text: #1c1b19;
+    --dgm-muted: #6f6a61;
+    --dgm-accent: #8a4b2a;
+    --dgm-ok: #2f6b45;
+    --dgm-danger: #a33a2c;
+    --dgm-fill: #f4f2ee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16151a;
+      --surface: #1e1d23;
+      --surface-2: #26252c;
+      --text: #ece9e3;
+      --text-muted: #a9a49b;
+      --line: #33313a;
+      --line-strong: #474450;
+      --accent: #d99b70;
+      --accent-soft: #2f2620;
+      --accent-text: #e8b48b;
+      --ok: #7fc79a;
+      --ok-soft: #1e2a22;
+      --warn: #d9ac6b;
+      --warn-soft: #2c2519;
+      --danger: #e0897c;
+      --danger-soft: #2e1e1c;
+      --dgm-bg: #1e1d23;
+      --dgm-line: #6c6675;
+      --dgm-text: #ece9e3;
+      --dgm-muted: #a9a49b;
+      --dgm-accent: #d99b70;
+      --dgm-ok: #7fc79a;
+      --dgm-danger: #e0897c;
+      --dgm-fill: #26252c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-size: 16px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 60rem; margin-inline: auto; padding: 3rem 1.5rem 4rem; }
+  p, li { max-width: 70ch; }
+  h1, h2, h3, .eyebrow, .chip, dt, th, nav, footer, code, .jump {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .eyebrow {
+    font-size: 0.7rem; letter-spacing: 0.13em; text-transform: uppercase;
+    font-weight: 650; color: var(--accent-text); margin: 0 0 0.5rem;
+  }
+  h1 { font-size: 2.05rem; line-height: 1.2; margin: 0 0 0.75rem; font-weight: 700; letter-spacing: -0.015em; }
+  h2 {
+    font-size: 1.3rem; margin: 3.25rem 0 1rem; font-weight: 680;
+    padding-bottom: 0.4rem; border-bottom: 2px solid var(--line-strong); letter-spacing: -0.01em;
+  }
+  h3 { font-size: 1.08rem; margin: 0 0 0.35rem; font-weight: 660; letter-spacing: -0.005em; }
+  h4 { font-size: 0.95rem; margin: 1.4rem 0 0.4rem; font-weight: 640; }
+  code { font-family: var(--mono); font-size: 0.855em; background: var(--surface-2); padding: 0.1em 0.34em; border-radius: 4px; }
+  a { color: var(--accent-text); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1.25rem 0 0; }
+  .chip {
+    font-size: 0.73rem; font-weight: 600; padding: 0.24rem 0.62rem;
+    border-radius: 999px; border: 1px solid var(--line-strong);
+    background: var(--surface-2); color: var(--text-muted);
+  }
+  .chip.k { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-soft); }
+  .chip.rev { background: var(--ok-soft); color: var(--ok); border-color: var(--ok-soft); }
+  .lede { font-size: 1.06rem; color: var(--text-muted); margin: 1.5rem 0 0; }
+  .stats { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 2rem 0 0; }
+  .stat {
+    flex: 1 1 8rem; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 0.7rem 0.85rem;
+  }
+  .stat b { display: block; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 1.45rem; font-weight: 680; line-height: 1.1; }
+  .stat span { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.07em; font-family: ui-sans-serif, system-ui, sans-serif; }
+  .axes { list-style: none; padding: 0; margin: 0; }
+  .axes li { padding: 0.55rem 0 0.55rem 0; border-bottom: 1px solid var(--line); max-width: none; }
+  .axes li:last-child { border-bottom: 0; }
+  .axes .tag {
+    display: inline-block; min-width: 1.5rem; font-family: var(--mono); font-weight: 700;
+    color: var(--accent-text);
+  }
+  .axes li.retired { color: var(--text-muted); }
+  .jump { margin: 0 0 2rem; padding: 0.9rem 1.1rem; background: var(--surface-2); border-radius: 10px; }
+  .jump ol { margin: 0; padding-left: 1.3rem; font-size: 0.9rem; }
+  .jump li { margin: 0.28rem 0; max-width: none; }
+  article.idea {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 1.5rem 1.6rem; margin: 0 0 1.6rem;
+  }
+  .idea-head { display: flex; align-items: baseline; gap: 0.7rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+  .rank {
+    font-family: var(--mono); font-weight: 700; font-size: 0.82rem;
+    background: var(--accent-soft); color: var(--accent-text);
+    border: 1px solid var(--accent-soft); border-radius: 999px; padding: 0.2rem 0.6rem;
+  }
+  .idea dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.45rem 1.1rem; margin: 1rem 0 0; }
+  .idea dt {
+    font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+    font-weight: 650; color: var(--text-muted); padding-top: 0.22rem;
+  }
+  .idea dd { margin: 0; }
+  .idea dd p { margin: 0 0 0.5rem; }
+  .idea dd p:last-child { margin-bottom: 0; }
+  .basis { font-size: 0.93rem; }
+  .basis .tagd, .basis .tage, .basis .tagr {
+    font-family: var(--mono); font-size: 0.78rem; font-weight: 700; padding: 0.06em 0.4em;
+    border-radius: 4px; margin-right: 0.3em;
+  }
+  .basis .tagd { background: var(--ok-soft); color: var(--ok); }
+  .basis .tage { background: var(--accent-soft); color: var(--accent-text); }
+  .basis .tagr { background: var(--warn-soft); color: var(--warn); }
+  blockquote.q {
+    margin: 0.5rem 0; padding: 0.6rem 0.9rem; background: var(--surface-2);
+    border-radius: 8px; font-family: var(--mono); font-size: 0.8rem;
+    line-height: 1.55; white-space: pre-wrap; max-width: none; color: var(--text);
+  }
+  .scores { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
+  .score {
+    font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.74rem; font-weight: 600;
+    padding: 0.26rem 0.68rem; border-radius: 999px; border: 1px solid var(--line-strong);
+    background: var(--surface-2); color: var(--text-muted);
+  }
+  .score.hi { background: var(--ok-soft); color: var(--ok); border-color: var(--ok-soft); }
+  .score.mid { background: var(--warn-soft); color: var(--warn); border-color: var(--warn-soft); }
+  figure { margin: 1.35rem 0 0.4rem; }
+  figure svg { display: block; width: 100%; height: auto; background: var(--dgm-bg); border: 1px solid var(--line); border-radius: 10px; }
+  figcaption { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; font-family: ui-sans-serif, system-ui, sans-serif; }
+  .callout {
+    background: var(--warn-soft); border: 1px solid var(--line); border-radius: 10px;
+    padding: 0.9rem 1.1rem; margin: 1.2rem 0;
+  }
+  .callout .eyebrow { color: var(--warn); }
+  .callout p { margin: 0 0 0.6rem; max-width: none; }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout.settled { background: var(--ok-soft); }
+  .callout.settled .eyebrow { color: var(--ok); }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 0.68rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-muted); font-weight: 650; }
+  td:first-child { font-family: var(--mono); font-size: 0.82rem; color: var(--text-muted); white-space: nowrap; }
+  table.plain td:first-child { font-family: inherit; font-size: inherit; color: inherit; white-space: normal; }
+  footer.composition-signal {
+    margin-top: 3.5rem; padding-top: 1.2rem; border-top: 1px solid var(--line);
+    font-size: 0.78rem; color: var(--text-muted);
+  }
+  @media (max-width: 620px) {
+    .idea dl { grid-template-columns: 1fr; gap: 0.15rem; }
+    .idea dt { padding-top: 0.6rem; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<p class="eyebrow">Ideation</p>
+<h1>Mog Canvas — Functional Uses and Experience Design</h1>
+
+<div class="meta">
+  <span class="chip">date <time datetime="2026-07-26">2026-07-26</time></span>
+  <span class="chip rev">revised <time datetime="2026-07-27">2026-07-27</time></span>
+  <span class="chip">topic mog-canvas-uses-and-design</span>
+  <span class="chip">mode repo-grounded</span>
+  <span class="chip k">focus novel functional uses of the canvas + better canvas experience design</span>
+</div>
+
+<p class="lede">Five ideation agents across six frames produced 41 candidates; a fresh-context verifier that
+never saw the generation then tried to refute every one. Seven survived. The document was then revised
+against two things the original run did not have: <strong>direction from the workbook owner</strong>, and
+<strong>the installed SDK's actual type surface</strong>. Both changed the ranking. The through-line held:
+this project keeps building signals and then not consuming them — but the sharpest instance turned out to
+be one nobody in the run had looked for.</p>
+
+<div class="stats">
+  <div class="stat"><b>41</b><span>raw candidates</span></div>
+  <div class="stat"><b>7</b><span>survivors</span></div>
+  <div class="stat"><b>13</b><span>rejected or folded</span></div>
+  <div class="stat"><b>1</b><span>cut on owner direction</span></div>
+</div>
+
+<h2 id="grounding-context">Grounding Context</h2>
+
+<p>Mog Canvas embeds a real WASM-backed spreadsheet engine
+(<code>@mog-sdk/spreadsheet-app</code>) inside an AI agent's chat surface via MCP and the MCP Apps UI
+extension. Seven model-facing tools exist: <code>list_workbooks</code>, <code>open_workbook</code>,
+<code>get_workbook_session</code>, <code>save_workbook</code>, <code>validate_workbook</code>,
+<code>screenshot_workbook</code>, <code>close_workbook_session</code>.</p>
+
+<p><strong>Two lanes write one file.</strong> The human lane is the live canvas, running
+<code>editModel: { user: 'write', agents: 'none', automation: 'none' }</code> — agent edits in the canvas
+are forbidden by policy, not convention. The agent lane is the headless SDK. The handoff rule ("save
+before switching lanes") is social and unenforced.</p>
+
+<p><strong>Identity is content-derived.</strong> A workbook's revision is the SHA-256 of its bytes on
+disk. The save pipeline stages, fsyncs, backs up to <code>.bak</code>, then atomically renames. A stale
+save is refused with a 409 and the loser's bytes are preserved as
+<code>.conflict-&lt;stamp&gt;.xlsx</code> — nothing merges silently, and concurrency was measured rather
+than assumed. The fingerprint is total: it answers "are these the same bytes?" perfectly and "which cells
+moved?" not at all.</p>
+
+<p><strong>Composition beat forking.</strong> The shipped compare view is ~50 lines of static HTML that
+mounts 2–3 full app instances in iframes driven by URL flags (<code>?wb=</code>, <code>?compact=1</code>,
+<code>left</code>/<code>mid</code>/<code>right</code>, <code>layout=vertical</code>). Because each pane is
+the whole app, each keeps Save/Verify/Screenshot and per-file revision protection for free. Each pane is
+also a full engine runtime (~41 MB WASM), so panes are for human-scale comparison, not dashboards.</p>
+
+<p><strong>Constraints every idea was qualified against:</strong> one security policy across browser,
+headless, and MCP surfaces (workbook-root containment, canonical <code>realpath()</code>, no absolute or
+UNC paths, no NTFS alternate data streams); workbook bytes never travel over HTTP; the dev server must
+serve the page (a <code>file://</code> origin silently yields blank iframes, and the engine's WASM is
+answered at two URL shapes); Vite must not watch the workbook root (EBUSY kills the server mid-save on
+Windows); and no claim of Codex host support without passing the host-acceptance gate.</p>
+
+<h3>What the SDK type surface actually exposes</h3>
+
+<p>The original run could not check this — <code>node_modules</code> was absent from the ideation
+worktree and the verifier had no network. It is installed in the primary worktree, and reading
+<code>@mog-sdk/contracts</code> and <code>@mog-sdk/sdk</code> settled three questions that the ranking
+below turns on.</p>
+
+<p><strong>The dependency graph is queryable.</strong> <code>worksheet.d.ts</code> declares four
+overloads returning plain A1 address lists:</p>
+
+<blockquote class="q">/** Get cells that depend on this cell by A1 address. */
+getDependents(address: string): Promise&lt;string[]&gt;;
+getDependents(row: number, col: number): Promise&lt;string[]&gt;;
+/** Get cells that this cell depends on by A1 address. */
+getPrecedents(address: string): Promise&lt;string[]&gt;;
+getPrecedents(row: number, col: number): Promise&lt;string[]&gt;;</blockquote>
+
+<p>This is data, not the UI trace-arrow command (<code>TRACE_DEPENDENTS</code> exists separately as a
+<code>UIActionType</code>). A recalc engine must maintain this graph to function at all; the SDK simply
+hands it over. Cascade tracing therefore requires no formula parser and no graph construction.</p>
+
+<p><strong>The volatile-function blind spot is already named.</strong>
+<code>contracts/versioning</code> declares <code>FormulaDependencyClosure</code> carrying
+<code>rootFormulaObjectIds</code>, <code>dependencyObjectIds</code>, and a boolean
+<code>includesVolatileFunctions</code>. <code>INDIRECT</code>/<code>OFFSET</code> build references at
+calculation time, so no static trace can follow them — the SDK's own model expects a closure to declare
+when it is incomplete rather than present a clean-looking graph with silent holes.</p>
+
+<p><strong>SDK version history will not persist to disk.</strong> <code>sdk/version-store.d.ts</code>
+supports <code>memory</code>, <code>memory-durable-snapshot</code>, <code>indexeddb</code>, and
+<code>browser</code>. Every filesystem kind — <code>node-file</code>, <code>filesystem</code>,
+<code>node:fs</code>, <code>fs</code> — is enumerated in
+<code>MOG_SDK_UNSUPPORTED_VERSION_STORE_KINDS</code>, with a comment stating the shape is public so
+callers "get an explicit unsupported diagnostic instead of an implicit memory fallback." Durable
+cross-session change history has to be ours.</p>
+
+<p class="callout"><span class="eyebrow">Verification status</span>
+These are the shipped published type declarations, read from the installed package. No call has been
+executed against a live workbook. Confirming <code>getDependents()</code> returns what it declares, on a
+real file, is the first task before anything is built on it.</p>
+
+<h2 id="settled-direction">Settled Direction</h2>
+
+<p>The original ranking was produced without the workbook owner's input. Three answers reordered it, and
+they are recorded here because they are not recoverable from the code.</p>
+
+<div class="callout settled">
+  <p class="eyebrow">Settled with the owner — 2026-07-27</p>
+  <p><strong>1. What "what changed?" must look like.</strong> Not a cell list. A dependency cascade:
+  assumption cell (old → new) → dependent (old → new) → dependent (old → new), plus an accumulating
+  dataset of all changes for distilling lineage and cascade patterns over time.</p>
+  <p><strong>2. No approval gate.</strong> Agent changes apply automatically. The single exception is a
+  cell the user currently occupies. Review-and-accept workflows are explicitly rejected as a bottleneck.</p>
+  <p><strong>3. Multi-pane comparison has no real use case.</strong> The compare view was built as a
+  deliberate stress test of the embedding model, not to serve a comparison workflow.</p>
+</div>
+
+<p><strong>Answers 1 and 2 are coupled, and that coupling is the most consequential thing in this
+document.</strong> Auto-apply without a gate is only safe <em>because</em> the cascade record exists
+afterward. Remove the trace and the same policy becomes invisible mutation with no audit path; keep it and
+no gate is needed, because the system has a flight recorder instead of a checkpoint. Answer 1 is the price
+of answer 2.</p>
+
+<p><strong>Answer 2 also promotes what looked like a UX nicety into a safety interlock.</strong> "Unless
+the user is in that cell" requires the canvas to report its cursor outward. Nothing in the adapter
+interface does that today. That wire is no longer optional decoration; it is the mechanism that makes
+gate-free auto-apply survivable.</p>
+
+<p><strong>Answer 3 retires axis C.</strong> Cross-pane coherence, the blink comparator, and
+pane-addresses-a-revision all lose their motivation at once.</p>
+
+<h2 id="topic-axes">Topic Axes</h2>
+<ul class="axes">
+  <li><span class="tag">A</span> <strong>Agent↔canvas signaling and the two-lane handoff</strong> — sessions, revisions, <code>inSync</code>, reload, lane locking, notification.</li>
+  <li><span class="tag">B</span> <strong>Change legibility</strong> — what changed, who changed it, why. Diff, provenance, formula-vs-value, cascade and lineage.</li>
+  <li class="retired"><span class="tag">C</span> <strong>Cross-pane coherence</strong> — <em>retired on owner direction; the compare view is a stress test, not a workflow.</em></li>
+  <li><span class="tag">D</span> <strong>Embed chrome, density, and display modes</strong> — what chrome earns its space; compact mode as a real API.</li>
+  <li><span class="tag">E</span> <strong>The canvas as an input surface</strong> — the human gesturing at the grid to instruct the agent, rather than the agent driving the canvas.</li>
+</ul>
+
+<h2 id="ranked-ideas">Ranked Ideas</h2>
+
+<nav class="jump" aria-label="Ranked ideas">
+  <ol>
+    <li><a href="#idea-1">The previous revision is already on disk — make it addressable</a> · B</li>
+    <li><a href="#idea-2">Trace the cascade, not the diff</a> · B</li>
+    <li><a href="#idea-3">The change ledger — durable, because the SDK's is not</a> · B</li>
+    <li><a href="#idea-4">The canvas→host uplink as a collision interlock</a> · E</li>
+    <li><a href="#idea-5">Refresh quietly on <code>inSync</code> — no bottleneck</a> · A</li>
+    <li><a href="#idea-6">Chrome is already a declared API; the CSS reach-in should go to zero</a> · D</li>
+    <li><a href="#idea-7">Open-with-intent: let the agent aim the canvas</a> · A</li>
+  </ol>
+</nav>
+
+<article class="idea" id="idea-1">
+  <div class="idea-head">
+    <span class="rank">1</span>
+    <h3>The previous revision is already on disk — make it addressable</h3>
+  </div>
+
+  <p><strong>Description.</strong> Every successful save copies the prior file to
+  <code>&lt;name&gt;.xlsx.bak</code> before the atomic rename. That is a free, byte-perfect previous
+  revision, written on every single save. And the path policy makes it <em>unreadable</em>: every
+  requested path must end in <code>.xlsx</code>, so nothing in the system — canvas, MCP tool, or headless
+  lane — can ever open it. The project pays for versioning on every write and cannot spend it.</p>
+
+  <p>The fix is a <strong>naming and addressing</strong> change, not a policy loosening: give
+  <code>path-policy.ts</code> a typed artifact-kind namespace (deliverable, backup, conflict, ledger)
+  instead of a two-entry extension map. Containment, <code>realpath()</code> resolution, null-byte and
+  ADS rejection all stay exactly as they are.</p>
+
+  <p>This ranks first on leverage rather than visibility. Four otherwise-separate candidates collide on
+  the same two lines: diff-against-previous, the ledger's storage target, conflict-file review, and
+  revision addressing. One typed namespace unblocks all four. Most importantly, it is where every
+  <em>old</em> value in idea 2's cascade comes from.</p>
+
+  <figure>
+    <svg viewBox="0 0 760 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram: every save writes a .bak file, but the path policy's .xlsx-only extension check rejects any attempt to read it back">
+      <text x="30" y="26" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11.5" font-weight="700" fill="var(--dgm-ok)" letter-spacing="0.08em">WRITE PATH — RUNS ON EVERY SAVE</text>
+      <rect x="30" y="40" width="104" height="44" rx="7" fill="var(--dgm-fill)" stroke="var(--dgm-line)"/>
+      <text x="82" y="67" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" fill="var(--dgm-text)">save()</text>
+      <line x1="140" y1="62" x2="182" y2="62" stroke="var(--dgm-line)" stroke-width="1.6"/>
+      <polygon points="190,62 180,58 180,66" fill="var(--dgm-line)"/>
+      <rect x="194" y="40" width="256" height="44" rx="7" fill="var(--dgm-fill)" stroke="var(--dgm-line)"/>
+      <text x="322" y="67" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11.5" fill="var(--dgm-text)">copyFile(file, `${file}.bak`)</text>
+      <line x1="456" y1="62" x2="498" y2="62" stroke="var(--dgm-line)" stroke-width="1.6"/>
+      <polygon points="506,62 496,58 496,66" fill="var(--dgm-line)"/>
+      <rect x="510" y="40" width="220" height="44" rx="7" fill="var(--dgm-fill)" stroke="var(--dgm-ok)"/>
+      <text x="620" y="61" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11.5" fill="var(--dgm-text)">sample.xlsx.bak</text>
+      <text x="620" y="76" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="var(--dgm-ok)">exists on disk</text>
+
+      <text x="30" y="132" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11.5" font-weight="700" fill="var(--dgm-danger)" letter-spacing="0.08em">READ PATH — EVERY CALLER, EVERY LANE</text>
+      <rect x="30" y="146" width="220" height="44" rx="7" fill="var(--dgm-fill)" stroke="var(--dgm-line)"/>
+      <text x="140" y="173" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11.5" fill="var(--dgm-text)">requestedPath(root, name)</text>
+      <line x1="256" y1="168" x2="298" y2="168" stroke="var(--dgm-line)" stroke-width="1.6"/>
+      <polygon points="306,168 296,164 296,172" fill="var(--dgm-line)"/>
+      <rect x="310" y="146" width="248" height="44" rx="7" fill="var(--dgm-fill)" stroke="var(--dgm-danger)"/>
+      <text x="434" y="167" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" fill="var(--dgm-text)">extname(name) !== '.xlsx'</text>
+      <text x="434" y="182" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10" fill="var(--dgm-danger)">throws</text>
+      <line x1="564" y1="168" x2="606" y2="168" stroke="var(--dgm-danger)" stroke-width="1.6" stroke-dasharray="4 3"/>
+      <polygon points="614,168 604,164 604,172" fill="var(--dgm-danger)"/>
+      <text x="622" y="165" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="650" fill="var(--dgm-danger)">.bak is</text>
+      <text x="622" y="180" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="650" fill="var(--dgm-danger)">unreachable</text>
+
+      <text x="30" y="222" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" fill="var(--dgm-muted)">The project pays for a previous revision on every write and has never been able to read one.</text>
+    </svg>
+    <figcaption>Illustrative. The write path and the read policy were built independently and never
+    reconciled; the backup is produced unconditionally and gated out unconditionally.</figcaption>
+  </figure>
+
+  <dl>
+    <dt>Axis</dt><dd>B — change legibility</dd>
+    <dt>Basis</dt>
+    <dd class="basis">
+      <p><span class="tagd">code</span><code>workbook-service.ts</code> — <code>const previous = backup &amp;&amp; existed ? `${file}.bak` : null;</code> then <code>await copyFile(file, previous)</code>, reached from <code>replaceFile(file, ..., { backup: true })</code>.</p>
+      <p><span class="tagd">code</span><code>path-policy.ts</code> — <code>EXTENSIONS = { workbook: '.xlsx', screenshot: '.png' }</code>, enforced by a single <code>extname()</code> comparison.</p>
+      <p><span class="tage">verified</span>Independently confirmed by the adversarial verifier, which reached the same two locations from a cold context.</p>
+    </dd>
+    <dt>Rationale</dt>
+    <dd>Highest leverage per line changed in the whole set, and a strict prerequisite for ideas 2 and 3.
+    It also removes a real asymmetry: the system's crash-safety story produces an artifact its security
+    story then forbids it to use.</dd>
+    <dt>Downsides</dt>
+    <dd>Expands the set of writable/readable path kinds, which is exactly the surface the containment
+    policy exists to keep small. It must be a closed enum with per-kind rules, never a relaxed extension
+    check. <code>.bak</code> is also only ever <em>one</em> revision deep — this is not history, it is the
+    immediately previous state.</dd>
+  </dl>
+
+  <div class="scores">
+    <span class="score hi">confidence 92%</span>
+    <span class="score mid">complexity medium</span>
+    <span class="score">unblocks 4 candidates</span>
+  </div>
+</article>
+
+<article class="idea" id="idea-2">
+  <div class="idea-head">
+    <span class="rank">2</span>
+    <h3>Trace the cascade, not the diff</h3>
+  </div>
+
+  <p><strong>Description.</strong> The unmet need across this whole category is "what did it change?", and
+  the default answer everyone builds is a cell-by-cell diff. For a model with formulas that answer is
+  nearly useless: two hundred cells changed, and the reader still has to reconstruct why. The useful
+  artifact is the cascade — <em>one assumption moved, here is the blast radius, in dependency order</em>,
+  with old and new values at each hop.</p>
+
+  <p>The reason this is not expensive is that <strong>the engine already owns the graph</strong> and
+  exposes it as <code>getDependents()</code> / <code>getPrecedents()</code>. The work decomposes into three
+  parts, and two are close to free:</p>
+
+  <table class="plain">
+    <thead><tr><th>Component</th><th>Source</th><th>Cost</th></tr></thead>
+    <tbody>
+      <tr><td>Which cells changed (the seed set)</td><td>The agent wrote them — it does not need to rediscover its own edits by comparing files</td><td>Free</td></tr>
+      <tr><td>The cascade from each seed</td><td><code>getDependents()</code>, walked breadth-first</td><td>One call per hop</td></tr>
+      <tr><td>Old value at each cell in the cascade</td><td>The <code>.bak</code>, read at <em>those addresses only</em></td><td>Idea 1 + a targeted lookup</td></tr>
+    </tbody>
+  </table>
+
+  <p>Note what this avoids: no full-workbook comparison, no XLSX parsing, no formula parser, no graph
+  construction. You compute the affected set first — typically dozens of cells — and then look up exactly
+  those addresses in the previous revision. The cost curve also inverts the usual one: the more formulas
+  the workbook has, the more useful the trace and the less redundant its output.</p>
+
+  <figure>
+    <svg viewBox="0 0 760 226" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram comparing a flat cell diff listing many unexplained changes against a cascade trace showing one seed change propagating through dependents with old and new values">
+      <text x="30" y="26" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11.5" font-weight="700" fill="var(--dgm-muted)" letter-spacing="0.08em">FLAT DIFF — WHAT EVERYONE BUILDS</text>
+      <rect x="30" y="38" width="300" height="150" rx="8" fill="var(--dgm-fill)" stroke="var(--dgm-line)"/>
+      <text x="46" y="60" font-family="ui-monospace, monospace" font-size="11" fill="var(--dgm-muted)">B7    1200 → 1450</text>
+      <text x="46" y="80" font-family="ui-monospace, monospace" font-size="11" fill="var(--dgm-muted)">E14  14400 → 17400</text>
+      <text x="46" y="100" font-family="ui-monospace, monospace" font-size="11" fill="var(--dgm-muted)">E15  16100 → 19430</text>
+      <text x="46" y="120" font-family="ui-monospace, monospace" font-size="11" fill="var(--dgm-muted)">H22  0.184 → 0.221</text>
+      <text x="46" y="140" font-family="ui-monospace, monospace" font-size="11" fill="var(--dgm-muted)">… 196 more rows</text>
+      <text x="46" y="168" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-style="italic" fill="var(--dgm-danger)">no causal order — reader rebuilds it</text>
+
+      <text x="404" y="26" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11.5" font-weight="700" fill="var(--dgm-ok)" letter-spacing="0.08em">CASCADE — WHAT THE GRAPH ALREADY KNOWS</text>
+      <rect x="404" y="38" width="326" height="150" rx="8" fill="var(--dgm-fill)" stroke="var(--dgm-ok)"/>
+      <rect x="420" y="52" width="150" height="30" rx="6" fill="var(--dgm-bg)" stroke="var(--dgm-accent)"/>
+      <text x="430" y="72" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--dgm-text)">B7 rent  1200 → 1450</text>
+      <text x="578" y="72" font-family="ui-sans-serif, system-ui, sans-serif" font-size="9.5" fill="var(--dgm-accent)">seed (agent wrote)</text>
+      <line x1="440" y1="86" x2="440" y2="102" stroke="var(--dgm-ok)" stroke-width="1.4"/>
+      <polygon points="440,110 436,100 444,100" fill="var(--dgm-ok)"/>
+      <rect x="448" y="96" width="170" height="28" rx="6" fill="var(--dgm-bg)" stroke="var(--dgm-line)"/>
+      <text x="458" y="114" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--dgm-text)">E14 =B7*12  14400 → 17400</text>
+      <line x1="468" y1="128" x2="468" y2="142" stroke="var(--dgm-ok)" stroke-width="1.4"/>
+      <polygon points="468,150 464,140 472,140" fill="var(--dgm-ok)"/>
+      <rect x="476" y="136" width="180" height="28" rx="6" fill="var(--dgm-bg)" stroke="var(--dgm-line)"/>
+      <text x="486" y="154" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--dgm-text)">H22 =NPV(...)  0.184 → 0.221</text>
+      <text x="420" y="180" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10.5" fill="var(--dgm-ok)">getDependents() supplies the edges; .bak supplies "old"</text>
+
+      <text x="30" y="212" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" fill="var(--dgm-muted)">Same underlying change. The right-hand form is the one a reader — or a model — can act on.</text>
+    </svg>
+    <figcaption>Illustrative; addresses and values are invented. The structural claim is that causal
+    ordering comes free from a graph the recalc engine must already maintain.</figcaption>
+  </figure>
+
+  <dl>
+    <dt>Axis</dt><dd>B — change legibility</dd>
+    <dt>Basis</dt>
+    <dd class="basis">
+      <p><span class="tagd">code</span><code>@mog-sdk/contracts</code> <code>worksheet.d.ts</code> — <code>getDependents(address)</code> and <code>getPrecedents(address)</code>, both returning <code>Promise&lt;string[]&gt;</code> of A1 addresses.</p>
+      <p><span class="tagd">code</span><code>contracts/versioning</code> — <code>FormulaDependencyClosure.includesVolatileFunctions</code>, the SDK's own acknowledgement that some closures cannot be completed statically.</p>
+      <p><span class="tagr">owner</span>Settled direction, answer 1: the cascade with old→new at each hop is the required shape, plus an accumulating dataset for lineage and pattern distillation.</p>
+    </dd>
+    <dt>Rationale</dt>
+    <dd>It is the artifact the owner actually asked for, it is the audit substrate that makes gate-free
+    auto-apply defensible, and its expensive-looking component turns out to be a shipped API call. It also
+    produces something structurally better than a diff rather than a cheaper approximation of one.</dd>
+    <dt>Downsides</dt>
+    <dd><code>INDIRECT</code>, <code>OFFSET</code>, and similar volatile functions resolve references at
+    calculation time, so the trace has holes wherever they sit. The honest behavior is to trace what is
+    traceable and mark where the trail goes cold — never to present a clean cascade with silent gaps.
+    Cascades from a widely-used assumption can also be large enough to need summarizing, and the
+    accumulated dataset needs idea 3 to have anywhere durable to live.</dd>
+  </dl>
+
+  <div class="scores">
+    <span class="score hi">confidence 88%</span>
+    <span class="score mid">complexity medium</span>
+    <span class="score">depends on 1</span>
+  </div>
+</article>
+
+<article class="idea" id="idea-3">
+  <div class="idea-head">
+    <span class="rank">3</span>
+    <h3>The change ledger — durable, because the SDK's is not</h3>
+  </div>
+
+  <p><strong>Description.</strong> Three lanes write these files — the canvas, the MCP tools, the headless
+  SDK — and not one of them signs its work. <code>SaveResult</code> carries no actor.
+  <code>SessionState</code> carries no actor. The SHA-256 proves the bytes are intact and says nothing
+  about who produced them. "The file changed" should be able to become "the agent changed it at 2:04, from
+  revision <code>a3f…</code>, in response to turn 7."</p>
+
+  <p>This was ranked seventh as an audit nicety. Two things moved it up. First, the owner's requirement
+  for "a dataset of all changes" to distill lineage and cascade patterns over time — that dataset is
+  precisely a ledger, and idea 2 produces its rows. Second, the SDK will not host it: every filesystem
+  version-store kind is explicitly enumerated as unsupported, deliberately, so that callers get a loud
+  diagnostic rather than a silent in-memory store that evaporates when the process exits. Durable
+  cross-session history is ours to build or it does not exist.</p>
+
+  <dl>
+    <dt>Axis</dt><dd>B — change legibility</dd>
+    <dt>Basis</dt>
+    <dd class="basis">
+      <p><span class="tagd">code</span><code>sdk/version-store.d.ts</code> — <code>MOG_SDK_SUPPORTED_VERSION_STORE_KINDS</code> is memory/indexeddb/browser only; <code>node-file</code>, <code>filesystem</code>, <code>node:fs</code>, <code>fs</code> all sit in the <em>unsupported</em> list with an explicit "no implicit memory fallback" rationale.</p>
+      <p><span class="tagd">code</span><code>workbook-service.ts</code> — <code>SaveResult</code> and <code>SessionState</code> carry no actor or lane field; the same service serves all three lanes.</p>
+      <p><span class="tagr">owner</span>Settled direction, answer 1: an accumulating dataset of all changes is part of the requirement, not an extra.</p>
+    </dd>
+    <dt>Rationale</dt>
+    <dd>Idea 2 answers "what did this one change do?" The ledger answers "what has been done to this model,
+    by whom, in what order" — and it is the only thing that makes cascade <em>patterns</em> (as opposed to
+    single traces) computable. Under a no-approval policy it is also the entire accountability story.</dd>
+    <dt>Downsides</dt>
+    <dd>A ledger is durable state with its own growth, corruption, and concurrency questions, and it must
+    live inside the same containment policy as everything else — which is another reason idea 1 comes
+    first. Append-only keeps it simple but unbounded; anything smarter needs a compaction story.</dd>
+  </dl>
+
+  <div class="scores">
+    <span class="score hi">confidence 85%</span>
+    <span class="score mid">complexity medium</span>
+    <span class="score">depends on 1</span>
+  </div>
+</article>
+
+<article class="idea" id="idea-4">
+  <div class="idea-head">
+    <span class="rank">4</span>
+    <h3>The canvas→host uplink as a collision interlock</h3>
+  </div>
+
+  <p><strong>Description.</strong> Information flows one way today. The host mounts the canvas, passes it
+  options, and hears nothing back about what the user is doing inside it. There is no selection event, no
+  cursor event, no viewport event in the adapter interface — the only callback is
+  <code>onDirtyChange</code>, and it updates a local wrapper element rather than signaling outward.</p>
+
+  <p>The original run ranked this third as an input-surface idea: highlight a range, and the selection
+  becomes the prompt scope. The verifier refuted the cheap framing — an earlier draft claimed an existing
+  dirty-state uplink precedent, which was a miscitation — and the owner's second answer then changed what
+  the wire is <em>for</em>. Auto-apply "unless the user is in that cell" cannot be implemented without the
+  canvas reporting cursor position outward. The uplink is no longer a convenience; it is the interlock
+  that makes gate-free auto-apply survivable.</p>
+
+  <p>Selection-scoped prompting remains its first and best consumer, and the same channel later carries
+  viewport and staleness. But it must be built as new plumbing, not discovered as existing plumbing.</p>
+
+  <figure>
+    <svg viewBox="0 0 760 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram showing host to canvas options flowing inward while cursor, selection and viewport signals have no return path">
+      <rect x="40" y="56" width="170" height="76" rx="9" fill="var(--dgm-fill)" stroke="var(--dgm-line)"/>
+      <text x="125" y="88" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12.5" font-weight="650" fill="var(--dgm-text)">Host / app</text>
+      <text x="125" y="107" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10.5" fill="var(--dgm-muted)">agent lane, MCP tools</text>
+
+      <rect x="550" y="56" width="170" height="76" rx="9" fill="var(--dgm-fill)" stroke="var(--dgm-line)"/>
+      <text x="635" y="88" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12.5" font-weight="650" fill="var(--dgm-text)">Live canvas</text>
+      <text x="635" y="107" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="10.5" fill="var(--dgm-muted)">where the user is</text>
+
+      <line x1="216" y1="76" x2="538" y2="76" stroke="var(--dgm-ok)" stroke-width="1.8"/>
+      <polygon points="546,76 536,72 536,80" fill="var(--dgm-ok)"/>
+      <text x="378" y="68" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--dgm-ok)">chrome, editModel, workbook, commands</text>
+
+      <line x1="538" y1="112" x2="216" y2="112" stroke="var(--dgm-danger)" stroke-width="1.8" stroke-dasharray="5 4"/>
+      <polygon points="208,112 218,108 218,116" fill="var(--dgm-danger)"/>
+      <text x="378" y="128" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10.5" fill="var(--dgm-danger)">cursor · selection · viewport — no path exists</text>
+
+      <text x="40" y="172" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" fill="var(--dgm-muted)">Without the dashed channel, "don't overwrite the cell they're working in" is unimplementable.</text>
+    </svg>
+    <figcaption>Illustrative. <code>onDirtyChange</code> exists but terminates in a local DOM element; it
+    is not an outward signal and does not establish the channel.</figcaption>
+  </figure>
+
+  <dl>
+    <dt>Axis</dt><dd>E — the canvas as an input surface</dd>
+    <dt>Basis</dt>
+    <dd class="basis">
+      <p><span class="tagd">code</span><code>src/adapters/types.ts</code> and <code>mog-embed-adapter.ts</code> — the adapter surface declares no selection, cursor, or viewport callback; <code>onDirtyChange</code> sets <code>el.dirty.hidden</code> on a wrapper node.</p>
+      <p><span class="tage">verified</span>The verifier corrected an earlier draft that placed <code>onDirtyChange</code> in <code>mcp-app.ts</code> and described it as an existing uplink. It is neither.</p>
+      <p><span class="tagr">owner</span>Settled direction, answer 2: auto-apply everywhere <em>except</em> a cell the user occupies.</p>
+    </dd>
+    <dt>Rationale</dt>
+    <dd>It is the only listed idea that changes what the product is — the grid stops being something the
+    agent drives and becomes something the human steers with. Under the settled no-approval policy it is
+    also load-bearing for safety rather than merely nice.</dd>
+    <dt>Downsides</dt>
+    <dd>Genuinely new plumbing across an embed boundary, and the highest-complexity item here. Cell
+    addresses also go stale the moment a row is inserted, and a stale range is acted on silently and
+    confidently — scope should anchor to headers, named ranges, or tables rather than raw coordinates.
+    Live agent writes into the canvas additionally require revisiting <code>agents: 'none'</code>, which is
+    a deliberate policy setting, not an oversight.</dd>
+  </dl>
+
+  <div class="scores">
+    <span class="score mid">confidence 70%</span>
+    <span class="score mid">complexity high</span>
+    <span class="score">interlock for auto-apply</span>
+  </div>
+</article>
+
+<article class="idea" id="idea-5">
+  <div class="idea-head">
+    <span class="rank">5</span>
+    <h3>Refresh quietly on <code>inSync</code> — no bottleneck</h3>
+  </div>
+
+  <p><strong>Description.</strong> <code>get_workbook_session</code> computes
+  <code>inSync: current.revision === session.revision</code> — correctly — and nothing in <code>src/</code>
+  ever reads it. The staleness signal exists and has zero consumers. The user therefore discovers that the
+  agent changed the file at the moment their own save is refused, having already worked on bytes that no
+  longer exist.</p>
+
+  <p>The original framing was an andon cord: detect staleness, stop the line, make the human acknowledge.
+  The owner rejected bottlenecks outright, so the behavior inverts — <strong>reload quietly, and interrupt
+  only when unsaved edits would actually be destroyed.</strong> Checking at focus and visibility
+  boundaries is not a compromise here but the only viable design: Vite must not watch the workbook root,
+  because watching a file mid-save throws EBUSY and kills the dev server on Windows.</p>
+
+  <dl>
+    <dt>Axis</dt><dd>A — agent↔canvas signaling</dd>
+    <dt>Basis</dt>
+    <dd class="basis">
+      <p><span class="tagd">code</span><code>server/mcp/mog-canvas-server.ts</code> — <code>get_workbook_session</code> returns <code>inSync</code>; grep across <code>src/</code> returns zero consumers.</p>
+      <p><span class="tagd">code</span><code>vite.config.ts</code> — the workbook root is explicitly excluded from watching, for a documented EBUSY failure.</p>
+      <p><span class="tagr">owner</span>Settled direction, answer 2: no gates, no bottlenecks.</p>
+    </dd>
+    <dt>Rationale</dt>
+    <dd>Cheapest correctness win in the set — the detection logic is already written and already right;
+    only the consumer is missing. Under auto-apply it is also what keeps the human's view honest without
+    ever asking them for permission.</dd>
+    <dt>Downsides</dt>
+    <dd>A silent reload discards in-flight unsaved edits and disturbs scroll and selection, which is the
+    exact failure the feature exists to prevent — so "quiet" must still mean "quiet <em>unless</em> the
+    canvas is dirty." Focus-boundary checks are also inherently late: a change made while the tab is
+    focused is not noticed until focus is lost and regained.</dd>
+  </dl>
+
+  <div class="scores">
+    <span class="score hi">confidence 90%</span>
+    <span class="score hi">complexity low</span>
+  </div>
+</article>
+
+<article class="idea" id="idea-6">
+  <div class="idea-head">
+    <span class="rank">6</span>
+    <h3>Chrome is already a declared API; the CSS reach-in should go to zero</h3>
+  </div>
+
+  <p><strong>Description.</strong> The adapter already passes the embed a structured chrome object —
+  <code>{ commandBar, fileMenu, formulaBar, sheetTabs, statusBar }</code> — with every value hardcoded.
+  Compact mode ignores it entirely and instead hides the same elements by reaching into the vendor's own
+  DOM with unversioned Tailwind-utility selectors. Two mechanisms exist for one job, and the fragile one
+  is doing the work. There is no version guard, no feature detection, and no test asserting the selectors
+  still match after an SDK upgrade.</p>
+
+  <p>This was the run's strongest consensus — 5/5 agents, independently re-verified. It drops to sixth
+  only because the settled direction promoted three change-legibility items above it, not because anything
+  weakened. It remains the lowest-complexity item here and the only one with a visible payoff: in a 302px
+  pane, visible grid goes from 0px to roughly 213px.</p>
+
+  <div class="callout">
+    <p class="eyebrow">Live defect, not a proposal</p>
+    <p>Compact mode hides the app footer (<code>.app.compact .foot { display: none; }</code>), and the
+    footer is where adapter-failure warnings render. So in small panes and the compare view — precisely
+    where a degraded or stub canvas is hardest to notice — the warning that says the real engine did not
+    load is the part that gets suppressed. This is a one-line fix and needs no ideation.</p>
+  </div>
+
+  <dl>
+    <dt>Axis</dt><dd>D — embed chrome, density, display modes</dd>
+    <dt>Basis</dt>
+    <dd class="basis">
+      <p><span class="tagd">code</span><code>src/adapters/mog-embed-adapter.ts</code> — the mount options include a full <code>chrome: { … }</code> object with per-element booleans, all set at build time.</p>
+      <p><span class="tagd">code</span><code>src/styles.css</code> — <code>.app.compact .canvas .mog-spreadsheet-app-theme-scope &gt; .shrink-0.border-b:first-child</code> and the matching <code>border-t:last-child</code> rule target the vendor's ribbon and status bar by utility class.</p>
+      <p><span class="tage">verified</span>5/5 agent convergence; re-derived independently by the verifier.</p>
+    </dd>
+    <dt>Rationale</dt>
+    <dd>Deletes a version-fragile coupling, replaces it with the supported interface, and turns a single
+    on/off flag into a real density dial — which is what any future display-mode work (thumbnail, working
+    pane, full editor) would need anyway.</dd>
+    <dt>Downsides</dt>
+    <dd>The declared API and the CSS hack may not cover exactly the same elements, so the swap needs
+    verification against a real mount rather than assumption. Formula bar and sheet tabs currently survive
+    compact mode; preserving that is a deliberate choice to re-make, not a detail to carry over blindly.</dd>
+  </dl>
+
+  <div class="scores">
+    <span class="score hi">confidence 95%</span>
+    <span class="score hi">complexity low</span>
+    <span class="score">5/5 convergence</span>
+  </div>
+</article>
+
+<article class="idea" id="idea-7">
+  <div class="idea-head">
+    <span class="rank">7</span>
+    <h3>Open-with-intent: let the agent aim the canvas</h3>
+  </div>
+
+  <p><strong>Description.</strong> <code>open_workbook</code> accepts exactly <code>{ name: z.string() }</code>.
+  When the agent opens the canvas for the user, the only thing it can communicate is which file — not
+  where to look, and not why the canvas appeared at all. The user reconstructs intent from chat scrollback.</p>
+
+  <p>Two optional fields close it: a range to scroll to and select, and a one-line reason to display. It
+  is the mirror image of idea 4 — there, the human points at cells to instruct the agent; here, the agent
+  points at cells to direct the human. It also gains value from idea 2: a cascade result is far more
+  useful when the canvas can open already aimed at the seed cell.</p>
+
+  <dl>
+    <dt>Axis</dt><dd>A — agent↔canvas signaling</dd>
+    <dt>Basis</dt>
+    <dd class="basis">
+      <p><span class="tagd">code</span><code>server/mcp/mog-canvas-server.ts</code> — the <code>open_workbook</code> <code>inputSchema</code> is a single required <code>name</code> string.</p>
+      <p><span class="tagd">code</span><code>src/App.tsx</code> — <code>?wb=</code> is validated against the config file list, establishing the pattern any new parameter should follow.</p>
+    </dd>
+    <dt>Rationale</dt>
+    <dd>Small, self-contained, and it makes every other idea's output land somewhere useful. Low risk: both
+    fields are optional and additive, and the existing validation pattern already exists to copy.</dd>
+    <dt>Downsides</dt>
+    <dd>A range is a claim about a workbook the agent may not have re-read, so a bad or stale range aims
+    the user at the wrong place with full confidence. The reason string is also model-authored text
+    rendered in the app's own chrome, which needs the same escaping discipline as any untrusted input.</dd>
+  </dl>
+
+  <div class="scores">
+    <span class="score hi">confidence 85%</span>
+    <span class="score hi">complexity low</span>
+  </div>
+</article>
+
+<h2 id="rejection-summary">Rejection Summary</h2>
+
+<p>Thirteen candidates did not survive as standalone ideas. Rejection here means "not a separate unit of
+work" — several were absorbed rather than discarded.</p>
+
+<table>
+  <thead><tr><th>Candidate</th><th>Disposition</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Genlock / shared-view endpoint</td>
+      <td><strong>Cut on owner direction.</strong> Ranked sixth before the owner confirmed the compare view is a functionality stress test with no comparison workflow behind it. Scroll-locking panes solves a problem nobody has.</td>
+    </tr>
+    <tr>
+      <td>Blink comparator</td>
+      <td>Cut with genlock. Flicker-based change detection needs aligned panes and same-workbook addressing; the verifier also found the "zero diff infrastructure" claim overstated, since it silently depended on two other candidates.</td>
+    </tr>
+    <tr>
+      <td>Pane addresses a revision</td>
+      <td>Cut with genlock. Its remaining value — reading a previous revision — is delivered by idea 1 without any pane involvement.</td>
+    </tr>
+    <tr>
+      <td>0 MB receipt pane</td>
+      <td>Cut with genlock.</td>
+    </tr>
+    <tr>
+      <td>Review-and-accept workflow</td>
+      <td><strong>Cut on owner direction.</strong> Explicitly rejected as a bottleneck. Auto-apply is the settled policy; accountability moves to ideas 2 and 3 after the fact.</td>
+    </tr>
+    <tr>
+      <td>Positive control transfer (explicit lane handoff)</td>
+      <td>Deferred. It is an enforcement-policy decision about who may write when, not a build — and it points the same direction the owner just ruled out.</td>
+    </tr>
+    <tr>
+      <td>Change-pack over <code>validate</code>/<code>screenshot</code> output</td>
+      <td>Folded into ideas 1 and 2. It was the cheap approximation of the cascade; the real graph API makes it unnecessary as a separate step, though it remains a fine fallback for non-formula changes.</td>
+    </tr>
+    <tr>
+      <td>Typed artifact-kind namespace</td>
+      <td>Folded into idea 1 — it <em>is</em> the mechanism, not a separate proposal.</td>
+    </tr>
+    <tr>
+      <td>Conflict inbox</td>
+      <td>Downstream of idea 1. Once <code>.conflict-&lt;stamp&gt;.xlsx</code> is addressable, reviewing one is an application of the cascade rather than new infrastructure.</td>
+    </tr>
+    <tr>
+      <td>Pre-flight staleness claim</td>
+      <td>Folded into ideas 1 and 5.</td>
+    </tr>
+    <tr>
+      <td>Contract proof / signed deliverable</td>
+      <td>Overlaps ideas 1 and 3 almost entirely; the ledger carries the provenance without a second artifact format.</td>
+    </tr>
+    <tr>
+      <td>Selection-as-prompt as a standalone quick win</td>
+      <td>Refuted by the verifier and re-scoped into idea 4. No selection event exists in the adapter, and the "existing dirty-state uplink" that made it look cheap was a miscitation.</td>
+    </tr>
+    <tr>
+      <td>Control sheet (a sheet that drives the agent)</td>
+      <td>A product fork rather than an improvement to this one. Better handled as a brainstorm variant if it is ever wanted.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="unverified">Unverified Claims</h2>
+
+<p>Stated plainly so nothing here is mistaken for established fact:</p>
+
+<ul>
+  <li>All SDK findings are read from <strong>published type declarations</strong> in the installed
+  package. No call has been executed against a live workbook. <code>getDependents()</code> returning what
+  it declares is the first thing to confirm.</li>
+  <li>External prior art referenced in the grounding — Paradigm's column-prompt model, Excel Agent Mode's
+  formula-emission behavior, the Rows shutdown, blink-comparator history, broadcast genlock practice — was
+  not re-verified in this run and had no network access available to check.</li>
+  <li>The MCP Apps <code>updateModelContext()</code> surface is described from the specification, not from
+  a working integration.</li>
+  <li>The 302px → 213px compact-mode measurement is carried from an existing solution doc, not re-measured
+  here.</li>
+</ul>
+
+<footer class="composition-signal">
+  <p>Composed by <code>ce-ideate</code> (repo-grounded mode, run <code>a1f7c3d9</code>) on 2026-07-26:
+  five ideation agents across six frames produced 41 raw candidates, merged to 18 plus 6 cross-cutting
+  synthesis items, then reduced by a fresh-context adversarial verifier that never saw the generation.
+  Revised 2026-07-27 against owner direction and the installed <code>@mog-sdk</code> type surface —
+  a revision that cut one idea, added one, and reordered the rest.</p>
+</footer>
+
+</div>
+</body>
+</html>
