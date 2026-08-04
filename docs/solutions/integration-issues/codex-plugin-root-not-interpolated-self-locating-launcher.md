@@ -28,6 +28,8 @@ A self-locating launcher, `plugins/mog-canvas/bin/mcp-launch.mjs`, resolves the 
 codex mcp add mog-canvas -- node <absolute-path>/plugins/mog-canvas/bin/mcp-launch.mjs
 ```
 
+Keeping the placeholder rather than hard-coding a path is what let the same package later serve Claude Code, which *does* interpolate `${CLAUDE_PLUGIN_ROOT}`. The gap is Codex-specific; the launcher's self-location is the part that is host-independent.
+
 ## Ground truth via binary extraction
 
 Rather than guessing manifest schemas, the exact contracts were extracted from the installed `codex.exe` (0.144.0): strings plus the embedded `validate_plugin.py` (trimmed of binary junk after a `U+0001` SyntaxError at line 630). That yielded:
@@ -46,4 +48,4 @@ The extracted validator was then run against the plugin: "Plugin validation pass
 
 ## Related Issues
 
-- docs/solutions/architecture-patterns/validating-mog-mcp-apps-without-overclaiming-codex-host-support.md — the validation ladder this feeds; the launcher fallback in operation
+- docs/solutions/architecture-patterns/validating-mog-mcp-apps-without-overclaiming-host-support.md — the validation ladder this feeds; the launcher fallback in operation

@@ -1,7 +1,7 @@
 /**
  * The shared workbook service: one policy, one persistence path, every lane.
  *
- * The HTTP file bridge (dev app), the MCP server (Codex plugin), and the
+ * The HTTP file bridge (dev app), the MCP server (Claude Code plugin), and the
  * headless scripts all operate on the same workbook root with the same
  * guarantees. This module is where those guarantees live, so no lane can
  * drift from the others:

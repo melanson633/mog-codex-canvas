@@ -26,9 +26,9 @@
  * is isolated into its own process. Input (cell click, typing) is dispatched
  * through CDP, which routes through the browser's real input pipeline.
  *
- * What a pass here still does NOT prove: rendering inside the actual Codex
- * host. That requires installing the plugin into Codex, which is a separate,
- * user-approved step.
+ * What a pass here still does NOT prove: rendering inside a real host. That
+ * requires installing the plugin, which is a separate, user-approved step —
+ * see the host test procedure in docs/CLAUDE-CODE-PLUGIN.md.
  */
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';

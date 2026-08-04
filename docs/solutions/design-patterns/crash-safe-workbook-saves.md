@@ -43,4 +43,4 @@ The tests that guard this are "under duress" tests: SIGKILL at the promotion ins
 ## Related
 
 - docs/solutions/security-issues/windows-path-containment-traps.md — the `.bak` symlink and derived-path checks
-- docs/solutions/architecture-patterns/validating-mog-mcp-apps-without-overclaiming-codex-host-support.md — where this pipeline sits in the overall workbook authority
+- docs/solutions/architecture-patterns/validating-mog-mcp-apps-without-overclaiming-host-support.md — where this pipeline sits in the overall workbook authority

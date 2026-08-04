@@ -1,7 +1,7 @@
 {
   "name": "mog-canvas",
   "version": "0.1.0",
-  "description": "Open, edit, save, and validate local XLSX workbooks in a real Mog spreadsheet canvas rendered as an MCP App inside Codex.",
+  "description": "Open, edit, save, and validate local XLSX workbooks in a real Mog spreadsheet canvas rendered as an MCP App inside Claude Code.",
   "author": {
     "name": "Mark Melanson"
   },

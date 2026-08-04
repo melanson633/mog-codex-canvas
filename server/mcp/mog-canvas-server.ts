@@ -1,7 +1,7 @@
 /**
  * The Mog Canvas MCP server: tools + MCP Apps UI resource.
  *
- * This is the product surface of the Codex plugin. Every tool is a thin,
+ * This is the product surface of the Claude Code plugin. Every tool is a thin,
  * structured wrapper over the shared workbook service (../workbook-service),
  * which owns containment, staged writes, revision identity, and validation —
  * the MCP lane gets exactly the same guarantees as the dev app and the
