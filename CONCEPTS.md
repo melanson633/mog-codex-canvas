@@ -45,3 +45,17 @@ A local test harness that implements the MCP Apps host contract closely enough t
 The final deployment check performed in the actual target host, requiring visible application rendering plus a real edit, save, and persisted-file validation before host integration is declared working.
 
 Reference Host success is prerequisite evidence, not a substitute for this gate.
+
+## Canvas presentation
+
+### Compact Mode
+
+The display mode that strips a Mog Canvas down to the spreadsheet itself so it stays usable in a pane too short for full chrome.
+
+It is a layout intent only. Decorative chrome — surrounding toolbars, path indicators, ribbons, status strips — may be dropped; diagnostic output such as an Adapter Probe failure reason may not, because a small pane is where a degraded canvas is hardest to notice by eye.
+
+### Compare View
+
+A surface that shows several workbooks at once by embedding one complete, independently operating instance of the application per pane, each pinned to a single workbook.
+
+Panes share nothing: each carries its own save path and Workbook Session, so one pane's save cannot silently overwrite another's file — a competing write is refused as a revision conflict. Each pane also carries a full engine runtime, so the view is sized for human-scale comparison of a few workbooks, not for dashboards.
