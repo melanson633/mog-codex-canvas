@@ -46,6 +46,18 @@ The final deployment check performed in the actual target host, requiring visibl
 
 Reference Host success is prerequisite evidence, not a substitute for this gate.
 
+## Editing lanes
+
+### Editing Lane
+
+One of the separate paths through which a workbook may be changed, each with its own writer and its own evidence obligations; which lane a given writer may use is a fixed policy of the canvas, not a per-session preference.
+
+### Headless Lane
+
+The Editing Lane in which a workbook is opened, changed, and saved through the spreadsheet engine directly, with no canvas rendered and no human present.
+
+Because nothing is visible while it runs, an edit made here is expected to carry its own proof: a read-back of the saved file and an image of the range that changed, so the result is reviewable without opening the workbook. It is the lane reserved for automated writers; a Mog Canvas remains the lane for human edits.
+
 ## Canvas presentation
 
 ### Compact Mode

@@ -29,7 +29,7 @@ A grab-bag of Mog SDK facts that each cost real debugging time and that guessing
 
 ## API shape — introspect, don't guess
 
-- SDK objects are **proxy-backed**: `Object.getOwnPropertyNames(prototype)` returns only `constructor`. Discover the API by calling `api.describe` / `api.search` or reading the contracts `.d.ts` — three separate guessed names (`wb.sheets.get`, `ws.structure.setColumnWidth`, a `workbook_metadata` tool) were all wrong; the real ones were `wb.activeSheet`, `ws.layout.setColumnWidth('F', 380)`, and the 9 names registered in source.
+- SDK objects are **proxy-backed**: `Object.getOwnPropertyNames(prototype)` returns only `constructor`. Discover the API by calling `api.describe` / `api.search` or reading the contracts `.d.ts` — three separate guessed names (`wb.sheets.get`, `ws.structure.setColumnWidth`, a `workbook_metadata` tool) were all wrong; the real ones were `wb.activeSheet`, `ws.layout.setColumnWidth('F', 380)`, and the tool names actually registered in the SDK's source.
 - `wb.getOrCreateSheet(name)` returns `Promise<{ sheet, created }>`, not a sheet.
 - `captureScreenshot(sheet, range, opts): Promise<Uint8Array>` lives in the contracts `_types` tree and requires an actor ref — use `kind: 'user'` (privileged kinds need a host authority adapter).
 
