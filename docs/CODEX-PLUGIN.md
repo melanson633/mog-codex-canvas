@@ -42,11 +42,12 @@ Evidence produced by runs in this repo (commands in parentheses):
 ## Install (user-run step)
 
 These commands change Codex's user-level configuration, so they are left
-for you to run. Point them at the current `main` checkout
-(`C:\Users\MarkMelanson\Documents\Mog-Codex-Live-XLSX`). From anywhere:
+for you to run. Substitute `<path-to-checkout>` with the absolute path to
+your own clone of this repo — the directory holding this `docs/` folder.
+Point the commands at the checkout you want Codex to use. From anywhere:
 
 ```bash
-codex plugin marketplace add "C:\Users\MarkMelanson\Documents\Mog-Codex-Live-XLSX"
+codex plugin marketplace add "<path-to-checkout>"
 ```
 
 The checkout root is the marketplace root: Codex discovers
@@ -69,7 +70,7 @@ with an absolute path — the launcher is self-locating, so this is the only
 path it needs:
 
 ```bash
-codex mcp add mog-canvas -- node "C:\Users\MarkMelanson\Documents\Mog-Codex-Live-XLSX\plugins\mog-canvas\bin\mcp-launch.mjs"
+codex mcp add mog-canvas -- node "<path-to-checkout>/plugins/mog-canvas/bin/mcp-launch.mjs"
 ```
 
 Either way the server confines itself to `<repo>\workbooks` (override with
