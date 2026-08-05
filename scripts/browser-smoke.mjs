@@ -174,7 +174,10 @@ try {
             .slice(0, 6),
         };
       })()`);
-      if (last.status === 'ready' || last.error) break;
+      // "renderer ready" is the adapter's honest terminal status: the embed's
+      // own getStatus() says ready AND the view answers a query. The old bare
+      // "ready" fired at mount wiring, before the renderer could paint.
+      if (last.status === 'renderer ready' || last.error) break;
       await new Promise((r) => setTimeout(r, 1000));
     }
     return last;
@@ -184,7 +187,11 @@ try {
   if (state.error) console.log(`page error: ${state.error}`);
 
   check('adapter resolved to the real Mog embed', state.badge.includes('@mog-sdk/spreadsheet-app'));
-  check('canvas host reported ready', state.status === 'ready', `status="${state.status}"`);
+  check(
+    'canvas host reported renderer ready',
+    state.status === 'renderer ready',
+    `status="${state.status}"`,
+  );
   check('no page-level error surfaced', !state.error, state.error ?? '');
   check(
     'embed rendered a real DOM tree into the canvas',
