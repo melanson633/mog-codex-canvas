@@ -14,6 +14,7 @@ import {
   type ConsumptionIndexReport,
   type SheetConsumption,
 } from './consumption-index.ts';
+import { buildDependencyGraph } from './workbook-graph.ts';
 import { DATASET_AMOUNT_REFS, datasetFixture, part, writeZipStored } from './test-fixtures.ts';
 
 /** A workbook of named sheets, each given as raw `<c>` elements. */
@@ -164,6 +165,24 @@ test('index: stage 2a names itself run and the other stages not run', () => {
   assert.deepEqual(report.stagesRun, ['stage-2a']);
   assert.deepEqual(report.stagesNotRun, ['stage-0', 'stage-1', 'stage-2b', 'stage-3']);
   assert.match(report.revision, /^[0-9a-f]{64}$/);
+});
+
+test('index: the cheap answer costs less than building the graph it stands in for', () => {
+  // The whole point of Stage 2a is that "is this data read, and from where" is
+  // answerable without the graph. If it were not materially cheaper there would
+  // be no reason to keep it as a separate stage. Compared against the graph
+  // forced over both sheets, since role-gating would otherwise skip the table.
+  const bytes = datasetFixture();
+  const index = indexed(bytes);
+  const graph = buildDependencyGraph(bytes, { includeSheets: ['Raw', 'Rollup'] });
+  assert.equal(graph.status, 'built');
+  assert.ok(index.elapsedMs >= 0);
+  assert.ok(
+    graph.status === 'built' && index.elapsedMs < graph.elapsedMs,
+    `index ${index.elapsedMs}ms was not below graph ${
+      graph.status === 'built' ? graph.elapsedMs : 'n/a'
+    }ms`,
+  );
 });
 
 test('index: non-ZIP bytes return the typed unreadable failure', () => {

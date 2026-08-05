@@ -207,7 +207,11 @@ export const modelFixture = memoize(() =>
   ]),
 );
 
-/** Two cells that reference each other — the cycle-termination fixture (AE9). */
+/**
+ * Two cells that reference each other — the cycle-termination fixture (AE9).
+ * The acyclic tail below them is the other half of the case: a cycle must not
+ * cost the sheet its depths, only the branch that entered the cycle.
+ */
 export const cyclicFixture = memoize(() =>
   writeZipStored(
     workbookParts([
@@ -216,7 +220,10 @@ export const cyclicFixture = memoize(() =>
         xml:
           '<dimension ref="A1:B1"/><sheetData><row r="1">' +
           `${cell('A1', '0', { formula: 'B1' })}${cell('B1', '0', { formula: 'A1' })}` +
-          '</row></sheetData>',
+          '</row>' +
+          `<row r="2">${cell('C1', '1')}</row>` +
+          formulaRows(2, 8, (r) => ({ address: `D${r}`, formula: r === 2 ? 'C1+1' : `D${r - 1}+1` })) +
+          '</sheetData>',
       },
     ]),
   ),
