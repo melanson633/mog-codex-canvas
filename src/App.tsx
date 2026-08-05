@@ -1,14 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  clearContext,
+  fetchCanvasCommands,
   getConfig,
   readWorkbook,
+  reportContext,
   validateWorkbook,
   writeScreenshot,
   writeWorkbook,
   type BridgeConfig,
+  type ContextSnapshot,
+  type FidelityReport,
   type ValidationReport,
 } from './api';
 import { resolveCanvasAdapter, type AdapterProbe, type CanvasSession } from './adapters';
+
+/** How often coalesced presence reports leave the app, and commands are polled. */
+const CONTEXT_THROTTLE_MS = 300;
+const COMMAND_POLL_MS = 1500;
 
 export function App() {
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -22,6 +31,14 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ValidationReport | null>(null);
   const [busy, setBusy] = useState(false);
+  const [fidelity, setFidelity] = useState<FidelityReport | null>(null);
+  // Non-null while presence coordination is unhealthy: agents cannot see where
+  // the human is, so the occupied-cell interlock is running blind.
+  const [coordWarning, setCoordWarning] = useState<string | null>(null);
+  // The workbook/epoch whose context this app currently owns on the bus. The
+  // next open awaits its teardown before starting, so switching from A to B
+  // can never leave A's presence behind.
+  const contextOwnerRef = useRef<{ file: string; epoch: number } | null>(null);
 
   useEffect(() => {
     getConfig()
@@ -47,12 +64,59 @@ export function App() {
     setError(null);
     setReport(null);
     setDirty(false);
+    setFidelity(null);
+    setCoordWarning(null);
     setStatus('loading workbook');
+
+    // Coalesced presence reporting: only the newest snapshot leaves the app,
+    // at most once per throttle window. The bus keeps latest-state-only, so
+    // dropped intermediate snapshots lose nothing.
+    let pending: ContextSnapshot | null = null;
+    let lastEpoch: number | null = null;
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    const flushContext = () => {
+      flushTimer = null;
+      if (!pending) return;
+      const snapshot = pending;
+      pending = null;
+      lastEpoch = snapshot.epoch;
+      contextOwnerRef.current = { file, epoch: snapshot.epoch };
+      void reportContext(file, snapshot).then(
+        (result) => {
+          if (stale) return;
+          // A rejected report means the bus holds someone else's (or a newer)
+          // presence — agents are coordinating against state this canvas does
+          // not own. Surface it; never silently drop it.
+          setCoordWarning(
+            result.accepted
+              ? null
+              : `Presence not accepted by the context bus: ${result.reason ?? 'rejected'}`,
+          );
+        },
+        (cause) => {
+          if (stale) return;
+          setCoordWarning(
+            `Presence reporting failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+          );
+        },
+      );
+    };
+
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
 
     void (async () => {
       const previous = sessionRef.current;
       sessionRef.current = null;
       await previous?.dispose().catch(() => undefined);
+
+      // Tear down the previous workbook's presence before this one comes up:
+      // switching A -> B must not leave A's occupied cell live on the bus for
+      // agents to coordinate against.
+      const owned = contextOwnerRef.current;
+      if (owned && owned.file !== file) {
+        contextOwnerRef.current = null;
+        await clearContext(owned.file, owned.epoch).catch(() => undefined);
+      }
 
       try {
         const adapter = await resolveCanvasAdapter();
@@ -72,14 +136,29 @@ export function App() {
           { fileName: file, bytes, colorScheme: 'system' },
           {
             persist: async (nextBytes) => {
-              const saved = await writeWorkbook(file, nextBytes, baseRevision);
-              baseRevision = saved.versionId;
-              return saved;
+              try {
+                const saved = await writeWorkbook(file, nextBytes, baseRevision);
+                baseRevision = saved.versionId;
+                if (saved.fidelity) setFidelity(saved.fidelity);
+                return saved;
+              } catch (cause) {
+                // A refused save must replace any stale "passed" in the footer:
+                // show the refusal's own fidelity report, or nothing — never
+                // the verdict of a save that no longer describes the attempt.
+                const details = (cause as { details?: { fidelity?: FidelityReport } }).details;
+                setFidelity(details?.fidelity ?? null);
+                throw cause;
+              }
             },
             onDirtyChange: setDirty,
             onStatus: setStatus,
             onError: (cause) =>
               setError(cause instanceof Error ? cause.message : JSON.stringify(cause)),
+            onContext: (snapshot) => {
+              if (stale) return;
+              pending = snapshot;
+              flushTimer ??= setTimeout(flushContext, CONTEXT_THROTTLE_MS);
+            },
           },
         );
         if (stale) {
@@ -87,6 +166,19 @@ export function App() {
           return;
         }
         sessionRef.current = session;
+
+        // Navigation-only command channel: reveal requests queued by agents.
+        pollTimer = setInterval(() => {
+          void fetchCanvasCommands(file)
+            .then(async (commands) => {
+              const live = sessionRef.current;
+              if (stale || !live?.reveal || commands.length === 0) return;
+              // Only the newest reveal matters — intermediate ones are history.
+              const last = commands[commands.length - 1];
+              await live.reveal(last.range, last.sheet);
+            })
+            .catch(() => undefined);
+        }, COMMAND_POLL_MS);
       } catch (cause) {
         if (!stale) {
           setStatus('failed');
@@ -97,6 +189,15 @@ export function App() {
 
     return () => {
       stale = true;
+      if (flushTimer) clearTimeout(flushTimer);
+      if (pollTimer) clearInterval(pollTimer);
+      // Teardown ends this canvas's presence — a newer epoch survives the call.
+      // (A file switch also awaits this clear inside the next effect run, so
+      // B never opens while A's presence is still live.)
+      if (lastEpoch !== null) {
+        if (contextOwnerRef.current?.file === file) contextOwnerRef.current = null;
+        void clearContext(file, lastEpoch).catch(() => undefined);
+      }
     };
   }, [file]);
 
@@ -123,7 +224,9 @@ export function App() {
     run('verify', async () => {
       if (!file) return;
       setStatus('verifying saved file');
-      setReport(await validateWorkbook(file));
+      const next = await validateWorkbook(file);
+      setReport(next);
+      if (next.fidelity) setFidelity(next.fidelity);
       setStatus('verified');
     });
 
@@ -204,6 +307,18 @@ export function App() {
       <footer className="foot">
         <span>{config ? config.root : '…'}</span>
         {probe && !probe.available && <span className="warn-text">{probe.detail}</span>}
+        {/* warn-text: while presence reporting is unhealthy, agents are blind
+            to where the human is — never conceal that. */}
+        {coordWarning && <span className="warn-text">{coordWarning}</span>}
+        {/* warn-text so it survives Compact Mode: fidelity failures are never concealed. */}
+        {fidelity && fidelity.status !== 'passed' && (
+          <span className="warn-text">
+            Value fidelity {fidelity.status}: {fidelity.reason}
+          </span>
+        )}
+        {fidelity?.status === 'passed' && (
+          <span title={fidelity.reason}>fidelity: passed ({fidelity.checkedCells} cells)</span>
+        )}
       </footer>
     </div>
   );

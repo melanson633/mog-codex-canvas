@@ -17,6 +17,7 @@ import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createWorkbook } from '@mog-sdk/sdk';
 import { canonicalizeRoot, resolveSaveTarget } from '../server/path-policy.ts';
+import { createWorkbookService } from '../server/workbook-service.ts';
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workbookRoot = process.env.MOG_WORKBOOK_DIR ?? resolve(projectRoot, 'workbooks');
@@ -48,7 +49,15 @@ try {
 
 const isNew = !(await exists(file));
 
+// The edit happens in memory; persistence goes through the shared workbook
+// service so this lane passes the same admission path as every other lane:
+// value-fidelity gate, occupied-cell interlock, and a flight-recorder receipt.
+const service = createWorkbookService({ root });
+
 const wb = isNew ? await createWorkbook() : await createWorkbook(file);
+let edited;
+let intent;
+let touchedRanges;
 try {
   const ws = wb.activeSheet;
 
@@ -59,17 +68,36 @@ try {
       ['COGS', 48000, 52000, '=SUM(B3:C3)'],
       ['Gross profit', '=B2-B3', '=C2-C3', '=SUM(B4:C4)'],
     ]);
-    console.log(`[headless] created ${basename(file)}`);
+    intent = 'create the demonstration P&L workbook';
+    touchedRanges = ['A1:D4'];
   } else {
     // Demonstrative edit against an existing workbook: stamp the run.
     await ws.setCell('A6', 'Last headless edit');
     await ws.setCell('B6', new Date().toISOString());
-    console.log(`[headless] edited ${basename(file)}`);
+    intent = 'stamp the headless run timestamp';
+    touchedRanges = ['A6:B6'];
   }
 
-  await wb.save(file);
+  edited = Buffer.from(await wb.toXlsx());
 } finally {
   await wb.dispose();
+}
+
+try {
+  const saved = await service.save(selector, edited, undefined, {
+    lane: 'headless',
+    actor: { kind: 'agent', id: 'headless-edit' },
+    intent,
+    touchedRanges,
+  });
+  console.log(`[headless] ${isNew ? 'created' : 'edited'} ${basename(file)}`);
+  console.log(
+    `[receipt] ${saved.transactionId ?? 'unavailable'} fidelity=${saved.fidelity.status} ` +
+      `coordination=${saved.coordination.status}`,
+  );
+} catch (error) {
+  console.error(`[headless] save refused: ${error.message}`);
+  process.exit(1);
 }
 
 // Validate by reopening the file that actually landed on disk.

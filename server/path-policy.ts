@@ -20,6 +20,10 @@ export const SCREENSHOT_EXTENSION = '.png';
 const EXTENSIONS = {
   workbook: WORKBOOK_EXTENSION,
   screenshot: SCREENSHOT_EXTENSION,
+  /** Flight-recorder save receipts under .audit/receipts/. */
+  receipt: '.json',
+  /** The .bak sibling replaceFile keeps of a replaced workbook. */
+  backup: '.bak',
 } as const;
 
 export type TargetKind = keyof typeof EXTENSIONS;

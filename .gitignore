@@ -14,3 +14,6 @@ workbooks/**/*.xlsx
 # (server/workbook-service.ts writes `<name>.conflict-<stamp>.xlsx`). Listed
 # after the negation above so a conflict copy of the sample stays ignored.
 workbooks/**/*.conflict-*.xlsx
+
+# Flight-recorder evidence (immutable save receipts) generated at runtime.
+workbooks/.audit/

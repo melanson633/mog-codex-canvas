@@ -492,7 +492,7 @@ try {
     return `dirty=${s.frame.dirty}`;
   });
 
-  await check('Save button persisted through save_workbook to the fixture on disk', async () => {
+  await check('Save button persisted through save_workbook_canvas to the fixture on disk', async () => {
     await evaluate(`window.__send('save')`);
     const s = await waitFor(
       'save to settle',
@@ -506,7 +506,10 @@ try {
       `A6 was ${JSON.stringify(before)}, now ${JSON.stringify(after)}, expected ${typed}`,
     );
     await stat(join(root, 'sample.xlsx.bak'));
-    expect(toolCalls.includes('save_workbook'), `save did not travel through tools: ${toolCalls.join(',')}`);
+    // The component is the human's canvas: its save must travel through the
+    // trusted human lane, never the model-visible agent tool.
+    expect(toolCalls.includes('save_workbook_canvas'), `save did not travel through tools: ${toolCalls.join(',')}`);
+    expect(!toolCalls.includes('save_workbook'), `a canvas save must not use the agent lane: ${toolCalls.join(',')}`);
     return `A6: ${JSON.stringify(before)} -> ${JSON.stringify(after)}, backup sample.xlsx.bak present`;
   });
 
