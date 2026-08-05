@@ -24,6 +24,43 @@ Agreement between the values a spreadsheet engine computes for a workbook and th
 
 It is a separate property from durability and from identity: a save can be non-torn, fully flushed, and matched to the expected Workbook Revision while still carrying values the engine got wrong. Only the file's own recorded results are an independent reference — re-reading a value back through the engine that produced it merely confirms the engine agrees with itself.
 
+### Fidelity Verdict
+
+The three-state judgment of Value Fidelity for a specific set of workbook bytes: verified in agreement, verified in disagreement, or unverified.
+
+The third state is load-bearing and never collapses into the first. Absent or unreadable evidence — no recorded results to compare against, bytes the engine will not open, a sheet it cannot resolve — yields *unverified*, not agreement. Only a disagreement the check actually observed refuses a save; an unverified save is permitted to proceed, because refusing on missing evidence would turn a gap in knowledge into lost work. It must, however, be reported as unverified wherever it is shown, since a reader who sees no warning will assume the stronger claim. A refused save preserves its attempted bytes separately rather than discarding them, as a conflicting save does.
+
+The verdict is scoped to exact bytes, so it travels with a Workbook Revision rather than with a file or a Workbook Session. It is also a sampled judgment over a bounded number of formulas, and reports when the file carried more than it examined — agreement is evidence, not proof.
+
+## Workbook profiling
+
+### Workbook Profile
+
+A characterization of a workbook's structure — sheet inventory, row and cell counts,
+formula count and text, table ranges, comment presence — derived from the file's own
+stored parts rather than from any spreadsheet engine.
+
+Because it reads contents rather than computing them, it is available as soon as the
+bytes are in hand and costs milliseconds, independent of how long an engine takes to
+become interactive on the same file. It answers what the workbook *contains*; it
+cannot answer what a formula evaluates to now.
+
+### Workbook Genre
+
+The coarse structural kind of a workbook — a *model*, whose formulas wire many sheets
+together, or a *dataset*, whose formulas are local and repeat down thousands of rows.
+
+It is derived from a Workbook Profile, chiefly the share of formulas that reference
+another sheet, so it is known before any engine opens the file. The two kinds fail
+differently and warrant different presentation: a model's risk is cross-sheet
+integrity, a dataset's is volume. The dividing ratio is a calibration choice, not a
+property of the format, and any threshold used in code is a guess until enough
+workbooks have been profiled to justify it.
+
+Genre is also the axis along which a second specimen is chosen when testing whether a
+proposed feature generalizes: a design built while looking at one genre is tested
+against the other, and what survives is the design.
+
 ## Host validation
 
 ### Mog Canvas
@@ -41,6 +78,17 @@ Which adapter is in use is decided at runtime by actually loading the engine and
 The outcome of adapter resolution: whether a live interactive canvas is available, which capabilities it supports, and a human-readable reason.
 
 The reason text is written to be shown verbatim to the user. The probe is the only thing distinguishing a real canvas from a placeholder, so any display mode that suppresses it makes degradation invisible — a display mode may drop decorative chrome, but never the probe's failure reason.
+
+### Renderer Readiness
+
+The point at which a Mog Canvas can actually show and accept work, as distinct from
+the point at which it has been mounted into its container.
+
+The two are separated by the engine's deferred hydration, which on a large workbook
+has been observed to run for well over a minute. A status surface that reports mount
+completion as readiness is accurate about the fast layer and wrong about the product,
+and gives the user no way to distinguish a long hydration from a hang — the same
+failure the Adapter Probe rules exist to prevent, one layer up.
 
 ### Reference Host
 

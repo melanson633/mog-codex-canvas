@@ -445,8 +445,23 @@ pane-addresses-a-revision all lose their motivation at once.</p>
 
   <p>Note what this avoids: no full-workbook comparison, no XLSX parsing, no formula parser, no graph
   construction. You compute the affected set first — typically dozens of cells — and then look up exactly
-  those addresses in the previous revision. The cost curve also inverts the usual one: the more formulas
-  the workbook has, the more useful the trace and the less redundant its output.</p>
+  those addresses in the previous revision.</p>
+
+  <p><strong>What makes the trace worth reading is dependency depth, not formula count.</strong> An
+  earlier draft of this idea claimed the cost curve inverts the usual one — that the more formulas a
+  workbook has, the more useful the trace. That is false, and a counterexample settles it: a workbook
+  with <strong>12,340 formulas and zero cross-sheet references</strong> traces exactly <em>one hop</em>.
+  Every seed's dependents are its immediate neighbours and the cascade terminates there; the output is a
+  flat list, which is the diff this idea exists to avoid. Formula count sets the <em>width</em> of a
+  layer. Only depth — chained precedents, cross-sheet references, calculated columns feeding other
+  calculated columns — produces the causal ordering that makes a cascade more legible than a diff.</p>
+
+  <p>So the honest scoping is narrower and more useful: this idea earns its keep on <strong>deep</strong>
+  models, and a shallow-but-wide workbook should be expected to produce a one-hop trace. That is worth
+  knowing up front rather than discovering after building it, and it suggests measuring depth on real
+  target workbooks before committing to the feature. The falsification and the general practice it
+  motivated are recorded in
+  <code>docs/solutions/design-patterns/validate-workbook-feature-designs-against-a-second-genre.md</code>.</p>
 
   <figure>
     <svg viewBox="0 0 760 226" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Diagram comparing a flat cell diff listing many unexplained changes against a cascade trace showing one seed change propagating through dependents with old and new values">

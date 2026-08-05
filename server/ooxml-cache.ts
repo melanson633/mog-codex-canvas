@@ -89,7 +89,7 @@ export interface CachedValueExtract {
   readonly formulaCells: number;
 }
 
-function unescapeXml(text: string): string {
+export function unescapeXml(text: string): string {
   return text
     .replaceAll(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
     .replaceAll(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number(dec)))
@@ -100,12 +100,12 @@ function unescapeXml(text: string): string {
     .replaceAll('&amp;', '&');
 }
 
-function attr(tag: string, name: string): string | null {
+export function attr(tag: string, name: string): string | null {
   const match = tag.match(new RegExp(`(?:^|\\s)${name}="([^"]*)"`));
   return match ? unescapeXml(match[1]) : null;
 }
 
-function parseSharedStrings(xml: string | null): string[] {
+export function parseSharedStrings(xml: string | null): string[] {
   if (!xml) return [];
   const strings: string[] = [];
   for (const si of xml.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)) {
@@ -117,7 +117,7 @@ function parseSharedStrings(xml: string | null): string[] {
 }
 
 /** Sheet display names in workbook order, mapped to their part path. */
-function sheetParts(entries: ZipEntry[]): { name: string; part: string }[] {
+export function sheetParts(entries: ZipEntry[]): { name: string; part: string }[] {
   const byName = new Map(entries.map((entry) => [entry.name, entry]));
   const workbook = byName.get('xl/workbook.xml');
   if (!workbook) throw new Error('Not an XLSX workbook: xl/workbook.xml is missing');

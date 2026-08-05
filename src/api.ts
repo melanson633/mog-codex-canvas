@@ -47,6 +47,45 @@ export interface SaveResponse {
   readonly transactionId?: string | null;
 }
 
+export interface SheetProfile {
+  readonly name: string;
+  readonly rows: number;
+  readonly cells: number;
+  readonly formulas: number;
+}
+
+export interface ProfileShape {
+  readonly status: 'profiled';
+  readonly bytes: number;
+  readonly sheets: readonly SheetProfile[];
+  readonly rows: number;
+  readonly cells: number;
+  readonly formulas: number;
+  readonly crossSheetRefs: number;
+  readonly crossSheetRatio: number;
+  readonly tableParts: number;
+  readonly calculatedColumnFormulas: number;
+  readonly commentParts: number;
+  readonly genre: 'model' | 'dataset';
+  readonly genreBasis: string;
+  readonly elapsedMs: number;
+}
+
+export interface ProfileUnreadable {
+  readonly status: 'unreadable';
+  readonly bytes: number;
+  readonly reason: string;
+}
+
+/** Byte-first shape profile: truth of the last save, engine-free. */
+export interface WorkbookProfileResponse {
+  readonly name: string;
+  readonly revision: string;
+  readonly profile: ProfileShape | ProfileUnreadable;
+  readonly fidelity: FidelityReport | null;
+  readonly provenance: string;
+}
+
 async function unwrap<T>(response: Response): Promise<T> {
   const body = await response.json();
   if (!response.ok) {
@@ -72,6 +111,13 @@ export async function readWorkbook(
     bytes: new Uint8Array(await response.arrayBuffer()),
     revision: response.headers.get('x-workbook-revision') ?? '',
   };
+}
+
+/** Byte-first shape profile of the saved file — answers in milliseconds. */
+export function fetchProfile(name: string): Promise<WorkbookProfileResponse> {
+  return fetch(`/api/profile?path=${encodeURIComponent(name)}`).then((response) =>
+    unwrap<WorkbookProfileResponse>(response),
+  );
 }
 
 /**

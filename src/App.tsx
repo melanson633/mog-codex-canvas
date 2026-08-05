@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   clearContext,
   fetchCanvasCommands,
+  fetchProfile,
   getConfig,
   readWorkbook,
   reportContext,
@@ -12,6 +13,7 @@ import {
   type ContextSnapshot,
   type FidelityReport,
   type ValidationReport,
+  type WorkbookProfileResponse,
 } from './api';
 import { resolveCanvasAdapter, type AdapterProbe, type CanvasSession } from './adapters';
 
@@ -32,6 +34,10 @@ export function App() {
   const [report, setReport] = useState<ValidationReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [fidelity, setFidelity] = useState<FidelityReport | null>(null);
+  // Byte-first shape of the saved file — answers in milliseconds while the
+  // canvas renderer may take minutes to hydrate the same bytes.
+  const [profile, setProfile] = useState<WorkbookProfileResponse | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
   // Non-null while presence coordination is unhealthy: agents cannot see where
   // the human is, so the occupied-cell interlock is running blind.
   const [coordWarning, setCoordWarning] = useState<string | null>(null);
@@ -66,7 +72,26 @@ export function App() {
     setDirty(false);
     setFidelity(null);
     setCoordWarning(null);
+    setProfile(null);
+    setProfileError(null);
     setStatus('loading workbook');
+
+    // Shape-first: profile the saved bytes immediately, in parallel with the
+    // canvas open below. The panel renders in milliseconds; the renderer may
+    // take minutes on the same bytes. An unreadable file arrives as a typed
+    // result and renders as such — unknown is never shown as empty.
+    void fetchProfile(file).then(
+      (shape) => {
+        if (!stale) setProfile(shape);
+      },
+      (cause) => {
+        if (!stale) {
+          setProfileError(
+            `Shape profile failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+          );
+        }
+      },
+    );
 
     // Coalesced presence reporting: only the newest snapshot leaves the app,
     // at most once per throttle window. The bus keeps latest-state-only, so
@@ -286,6 +311,66 @@ export function App() {
       </header>
 
       {error && <pre className="error">{error}</pre>}
+
+      {(profile || profileError) && (
+        <section className="report shape">
+          <div className="report-head">
+            <strong>Saved-file shape</strong>
+            {profile?.profile.status === 'profiled' && (
+              <span>
+                {profile.profile.sheets.length} sheet(s) · {profile.profile.rows.toLocaleString()}{' '}
+                rows · {profile.profile.cells.toLocaleString()} cells ·{' '}
+                {profile.profile.formulas.toLocaleString()} formulas · profiled in{' '}
+                {profile.profile.elapsedMs} ms
+              </span>
+            )}
+            <button
+              onClick={() => {
+                setProfile(null);
+                setProfileError(null);
+              }}
+            >
+              close
+            </button>
+          </div>
+          {profileError && <pre className="warn-text">{profileError}</pre>}
+          {profile?.profile.status === 'unreadable' && (
+            <pre className="warn-text">
+              Not readable as .xlsx ({profile.profile.bytes.toLocaleString()} bytes):{' '}
+              {profile.profile.reason}
+            </pre>
+          )}
+          {profile?.profile.status === 'profiled' && (
+            <>
+              {profile.profile.sheets.map((sheet) => (
+                <pre key={sheet.name}>
+                  {sheet.name}: {sheet.rows.toLocaleString()} rows ·{' '}
+                  {sheet.cells.toLocaleString()} cells · {sheet.formulas.toLocaleString()} formulas
+                </pre>
+              ))}
+              <pre>
+                genre guess: {profile.profile.genre} — {profile.profile.genreBasis}
+                {'\n'}cross-sheet refs: {profile.profile.crossSheetRefs} (ratio{' '}
+                {profile.profile.crossSheetRatio.toFixed(3)}) · tables: {profile.profile.tableParts}{' '}
+                ({profile.profile.calculatedColumnFormulas} calculated-column formulas) · comment
+                parts: {profile.profile.commentParts}
+              </pre>
+              {profile.fidelity && (
+                <pre>
+                  fidelity at this revision: {profile.fidelity.status} ({profile.fidelity.reason})
+                </pre>
+              )}
+            </>
+          )}
+          {/* Provenance travels with the numbers, verbatim — these are the
+              saved bytes' truth, never the canvas's truth of now. */}
+          {profile && (
+            <div className="report-head">
+              <span>{profile.provenance}</span>
+            </div>
+          )}
+        </section>
+      )}
 
       <div className="canvas" ref={canvasRef} />
 

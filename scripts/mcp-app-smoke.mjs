@@ -402,9 +402,14 @@ try {
 
   // ---- 2. The CSP question -------------------------------------------------------
 
+  // The adapter's terminal status: reported only when the embed's own
+  // getStatus() says ready AND the view answers a query. The old bare "ready"
+  // fired at mount wiring, long before the renderer could paint.
+  const rendererReady = (status) => status === 'renderer ready';
+
   const settled = (s) =>
     s.frame &&
-    (s.frame.status.startsWith('ready') ||
+    (rendererReady(s.frame.status) ||
       s.frame.status === 'open failed' ||
       s.frame.violations.length > 0);
 
@@ -426,10 +431,10 @@ try {
     // Give late violations a moment to surface before judging the rung.
     await sleep(2_000);
     state = await probe();
-    outcomes[mode] = state.frame.status.startsWith('ready')
+    outcomes[mode] = rendererReady(state.frame.status)
       ? `ready (violations=[${state.frame.violations.join('; ')}])`
       : `blocked: violations=[${state.frame.violations.join('; ')}] errors=[${state.frame.errors.join('; ')}] status="${state.frame.status}"`;
-    if (state.frame.status.startsWith('ready')) break;
+    if (rendererReady(state.frame.status)) break;
   }
 
   await check('CSP requirement measured (spec-literal policy first, grants added only on failure)', async () => {
@@ -441,7 +446,7 @@ try {
 
   await check('real Mog canvas reached ready inside the sandboxed iframe', async () => {
     expect(
-      state.frame.status.startsWith('ready'),
+      rendererReady(state.frame.status),
       `status="${state.frame.status}" error="${state.frame.error}" violations=[${state.frame.violations.join('; ')}] errors=[${state.frame.errors.join('; ')}]`,
     );
     return `status="${state.frame.status}" under ${state.mode} CSP`;
