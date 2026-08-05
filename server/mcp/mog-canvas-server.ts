@@ -130,6 +130,50 @@ export function createMogCanvasServer(options: MogCanvasServerOptions): McpServe
     guarded(async () => ok({ root: service.root, files: await service.list() })),
   );
 
+  server.registerTool(
+    'profile_workbook',
+    {
+      title: 'Profile workbook (byte-first)',
+      description:
+        'Read a workbook\'s shape straight from its saved OOXML bytes in milliseconds, without opening the Mog engine: per-sheet rows/cells/formulas, cross-sheet reference ratio, table and comment parts, and a labeled genre guess. The provenance string travels with the numbers: this is the truth of the last save on disk, never unsaved canvas edits. Unreadable bytes come back as a typed "unreadable" profile with the reason — unknown is never reported as empty. Use this to orient and plan while the canvas renderer is still hydrating.',
+      inputSchema: { name: z.string().describe('Workbook name relative to the authorized root') },
+    },
+    guarded(async ({ name }: { name: string }) => {
+      const result = await service.profile(name);
+      const summary =
+        result.profile.status === 'profiled'
+          ? `${result.name}: ${result.profile.sheets.length} sheet(s), ${result.profile.rows} rows, ` +
+            `${result.profile.cells} cells, ${result.profile.formulas} formulas — profiled in ` +
+            `${result.profile.elapsedMs} ms. Genre guess: ${result.profile.genre} ` +
+            `(${result.profile.genreBasis}). ${result.provenance}`
+          : `${result.name} is not readable as .xlsx: ${result.profile.reason}`;
+      return ok({ ...result }, summary);
+    }),
+  );
+
+  server.registerTool(
+    'read_range',
+    {
+      title: 'Read range (byte-first)',
+      description:
+        'Read the populated cells of one sheet range straight from the saved bytes: cached values and formula text exactly as the file recorded them at its last save. Engine-free and fast — but the provenance string is load-bearing: these are as-saved values, never unsaved canvas edits, and cached formula values are only as trustworthy as the attached fidelity verdict (null means no verdict exists for this revision). Failures are typed: unreadable, no-such-sheet, or bad-range.',
+      inputSchema: {
+        name: z.string().describe('Workbook name relative to the authorized root'),
+        sheet: z.string().describe('Sheet name, e.g. "Sheet1"'),
+        range: z.string().describe('A1 range, e.g. "A1:D20"'),
+      },
+    },
+    guarded(async ({ name, sheet, range }: { name: string; sheet: string; range: string }) => {
+      const result = await service.readRange(name, sheet, range);
+      const summary =
+        result.read.status === 'ok'
+          ? `${result.name} ${sheet}!${range}: ${result.read.cells.length} populated cell(s)` +
+            `${result.read.truncated ? ' (truncated at the cell cap)' : ''}. ${result.provenance}`
+          : `${result.name} ${sheet}!${range}: ${result.read.status} — ${result.read.reason}`;
+      return ok({ ...result }, summary);
+    }),
+  );
+
   registerAppTool(
     server,
     'open_workbook',
