@@ -70,9 +70,32 @@ They fall into four themes:
 
 ## Implementation Units
 
-Units are grouped into sessions. Within a session, order matters. Across
-sessions, only S1-before-nothing holds — the sessions are independent and S4 can
-run concurrently in a worktree.
+Units are grouped into sessions. Within a session, order matters. **Across
+sessions it mostly does not** — the file ownership below is disjoint by
+construction, so S1 through S4 are designed to run concurrently in separate
+worktrees.
+
+| Session | Units | Files owned |
+|---------|-------|-------------|
+| **S0** | U4 | `sheet-schema.ts`, `sheet-roles.ts`, `workbook-graph.ts` — 3 chars each |
+| **S1** | U1, U2, U3 | `formula-refs.ts`, `consumption-index.ts` + tests |
+| **S2** | U5 | `workbook-graph.ts` + test |
+| **S3** | U6, U7, U8, U9 | `sheet-schema.ts`, `workbook-briefing.ts`, `ooxml-cache.ts` + tests |
+| **S4** | U10, U11, U12 | `scripts/mcp-check.mjs`, `scripts/ui-bundle.mjs` + test |
+| **S5** | U13 | all four byte-lane modules — **conflicts with S1, S2, S3** |
+
+Two ordering constraints, and only two:
+
+1. **S0 lands first, alone.** U4 is a three-character edit in three files that S2,
+   S3, and S5 all live in. It is five minutes of work; sequencing it removes the
+   only cross-session collision and buys full parallelism for everything after.
+2. **S5 runs last, alone.** U13 extracts shared column-letter math out of all four
+   byte-lane modules. It touches every file S1, S2, and S3 own. Running it
+   concurrently guarantees conflicts, and because it is a pure extraction, a
+   botched merge is a silent behavior change rather than a failed build.
+
+S1, S2, S3, and S4 own disjoint file sets and can run in four concurrent
+worktrees. Each still runs the full RF4 gate independently.
 
 ### Session 1 — Reference parsing blind spots (restores R16, R26)
 
@@ -106,7 +129,7 @@ zero.
 *Do U1 and U2 first; U3 last, because U3's test fixture is easier to write once
 the two known parse gaps no longer produce noise.*
 
-### Session 2 — Graph and scan performance (grades against U11)
+### Session 0 — The one edit that must land first
 
 **U4 — #12 — quadratic cell-scan regex.**
 `server/sheet-schema.ts:219`, `server/sheet-roles.ts:321`,
@@ -123,6 +146,8 @@ places: `[^>]*?` → `[^<>]*?`. Worth taking even under the "we only read our ow
 saved bytes" argument, because the MCP server reads whatever file it is pointed
 at. Test: a malformed sheet part with an unclosed `<c` completes in bounded time.
 
+### Session 2 — Graph performance (graded by U14)
+
 **U5 — #13 — `candidateOutputs` is O(nodes × rectangles).**
 `server/workbook-graph.ts:599` and the `dependentsOf` path it drives. Every node
 is tested against every range rectangle. **Measured, not hypothetical:** on a
@@ -135,7 +160,8 @@ rectangles stays within a stated ratio of a baseline operation timed in the same
 run (wall-clock assertions are contention-sensitive; see the review's note on the
 best-of-three latency test).
 
-*U4 before U5 — U4 is three characters and removes a confound from U5's timing.*
+*U4 (Session 0) must already be merged — it removes a confound from U5's timing
+measurements and touches a file S3 also owns.*
 
 ### Session 3 — Honest reporting (restores R31, R36, R40)
 
