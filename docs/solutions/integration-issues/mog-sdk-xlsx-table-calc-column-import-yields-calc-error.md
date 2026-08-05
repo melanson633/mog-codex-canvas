@@ -12,7 +12,7 @@ symptoms:
   - "`TxnLog[Direction]`, a calculated column referencing only static columns, is correct on all 4,167 rows"
   - "`SUMIFS` over the broken structured column cascades `#CALC!` into `E9`, `E93`, and `E95`"
   - "`recalculateAll()` returns in 0 ms and changes nothing — the dependency graph is marked clean"
-  - "Browser tab hard-freezes for ~104 s during single-threaded import of the 640 KB workbook"
+  - "Browser tab hard-freezes for ~104 s during single-threaded import — a size-driven engine cost, reproduced on unrelated workbooks of similar size"
 root_cause: logic_error
 resolution_type: code_fix
 related_components:
@@ -49,7 +49,7 @@ Which ones fail is not random, and the pattern is the useful part. Measuring all
 
 That last property is what makes this dangerous rather than merely annoying. `#CALC!` is Excel's empty-array error, so the failure presents as a formula problem in the user's own spreadsheet when it is actually a problem in the importer. The grid looks finished. Nothing in the canvas says otherwise.
 
-The blast radius is a data-integrity one. A canvas Save serializes engine state back to bytes and lands them on disk through the host bridge (`persistThroughHost`, [src/adapters/mog-embed-adapter.ts:152](../../../src/adapters/mog-embed-adapter.ts), the funnel every canvas save goes through). Pressing Save on this workbook would write `#CALC!` into a delivered client file. Read-only viewing is safe; saving is not.
+The blast radius is a data-integrity one. A canvas Save serializes engine state back to bytes and lands them on disk through the host bridge (`persistThroughHost`, [src/adapters/mog-embed-adapter.ts:255](../../../src/adapters/mog-embed-adapter.ts), the funnel every canvas save goes through). Pressing Save on this workbook would write `#CALC!` into a delivered client file. Read-only viewing is safe; saving is not. As of PR #14 that specific write is refused — see [Solution](#solution) — but the underlying SDK defect is unchanged.
 
 ## Symptoms
 
@@ -64,6 +64,8 @@ The blast radius is a data-integrity one. A canvas Save serializes engine state 
   Excel's cached result is `Subcontractors`. Mog's computed result is `#CALC!`.
 - Import takes roughly 104 seconds in the browser and 77–91 seconds headless, single-threaded in both. Earlier in the same work the browser tab hard-froze during open — that freeze is the import cost, not the evaluation bug, but it shares the blast radius and it is what made the failure hard to observe cleanly in the first place.
 
+  **The import cost is not a property of this file.** An unrelated 934,756-byte workbook carrying **zero** `calculatedColumnFormula` entries reproduced roughly 92 seconds to renderer-ready. Nothing about the calculated columns, the `TxnLog` table, or the evaluation defect is required to pay it — workbook size alone is. Treat the freeze as an engine characteristic at this scale and the `#CALC!` results as the file-specific defect; the two are independent and were only ever observed together by coincidence of which workbook surfaced first. (Both timings are runtime observations from the sessions that hit them; no benchmark is checked into this repo.)
+
 ## What Didn't Work
 
 Seven hypotheses were tested and disproven. Recording them matters more than usual here, because the first one had already been written down as a diagnosis and was wrong.
@@ -72,7 +74,7 @@ Seven hypotheses were tested and disproven. Recording them matters more than usu
 
 **2. `valuesOnly: true` on import.** The option exists — `DocumentImportOptions.valuesOnly` is documented in the SDK contracts as "Import values only, skip formulas". Setting it does not mitigate the failure.
 
-**3. An open-time calculation-mode option.** None exists. `SpreadsheetOpenWorkbookRequest` exposes exactly four members — `workbookId`, `workbookSessionId`, `displayName`, `source` — and this repo already passes three of them ([src/adapters/mog-embed-adapter.ts:143-147](../../../src/adapters/mog-embed-adapter.ts)). A repo-wide grep for `recalc|CALC|calculat|readOnly` across `src/`, `server/`, and `scripts/` matches only a doc comment on the adapter capability contract ([src/adapters/types.ts:20](../../../src/adapters/types.ts)). There is no knob to turn.
+**3. An open-time calculation-mode option.** None exists. `SpreadsheetOpenWorkbookRequest` exposes exactly four members — `workbookId`, `workbookSessionId`, `displayName`, `source` — and this repo already passes three of them ([src/adapters/mog-embed-adapter.ts:245-249](../../../src/adapters/mog-embed-adapter.ts)). At the time of diagnosis, a repo-wide grep for `recalc|CALC|calculat|readOnly` across `src/`, `server/`, and `scripts/` matched only a doc comment on the adapter capability contract ([src/adapters/types.ts:20](../../../src/adapters/types.ts)) — the guard described below has since added its own matches, but the SDK still exposes no knob to turn.
 
 **4. "The calculation budget just ran out mid-import."** Disproven directly. `recalculateAll()` returned in **0 ms** and changed nothing. Raw output from that run: `E9 after import "#CALC!" / recalcAll ms 0 / E9 after recalc "#CALC!" / Q2 after recalc "#CALC!" N2674 "#CALC!"`. A zero-millisecond full recalculation is the tell: the engine believes the graph is already clean and there is nothing to redo. The wrong values are settled, not pending.
 
@@ -86,20 +88,34 @@ The override branch was also ruled out as a trigger: `TxnLog!O` (`CategoryOverri
 
 ## Solution
 
-**Not yet implemented.** What follows is a verified diagnosis plus a recommended remediation. No code in this repo has been changed, and the upstream defect is not ours to fix.
-
-The verified diagnosis: on this large/mixed workbook, `@mog-sdk/sdk` 0.10.5 evaluates certain Excel table calculated-column formulas to an error — `#CALC!` where a `[#This Row]` reference points at another calculated column, `#VALUE!` where a range is built with `:` over structured references — and then marks the dependency graph clean, producing a settled wrong value rather than an error or a pending state. A calculated column referencing only static columns evaluates correctly, so the trigger is the reference shape rather than calculated columns in general.
+The verified diagnosis: on this large/mixed workbook, `@mog-sdk/sdk` 0.10.5 evaluates certain Excel table calculated-column formulas to an error — `#CALC!` where a `[#This Row]` reference points at another calculated column, `#VALUE!` where a range is built with `:` over structured references — and then marks the dependency graph clean, producing a settled wrong value rather than an error or a pending state. A calculated column referencing only static columns evaluates correctly, so the trigger is the reference shape rather than calculated columns in general. **The upstream defect is not ours to fix and is still present.** What changed is that this repo no longer lets it reach disk.
 
 **Immediate handling of the affected file.** Do not press Save in the canvas. Read the numbers via Excel or via `openpyxl` with `data_only=True`; the cached values in the file are correct, so the deliverable itself needs no repair.
 
-**Upstream.** Report this to Mog as a **wrong-result evaluation bug**, not a performance bug. The ~104 s import is a real and separate problem, but filing it as slowness invites a scheduling fix for a correctness defect. The two symptoms travel together and should be filed apart.
+**Upstream.** Report this to Mog as a **wrong-result evaluation bug**, not a performance bug. The ~104 s import is a real and separate problem — and, per the symptom note above, one that reproduces on similarly sized workbooks with no calculated columns at all — but filing it as slowness invites a scheduling fix for a correctness defect. The two should be filed apart.
 
-**Recommended durable fix in this repo: an open-time verification guard.** After `openWorkbook` resolves and `whenReady()` settles ([src/adapters/mog-embed-adapter.ts:143-148](../../../src/adapters/mog-embed-adapter.ts)), sample formula cells that carry a cached `<v>` in the source XML and compare the engine's computed value against that cached value. On mismatch:
+### The guard shipped — as a save-time gate, not the open-time one first recommended
 
-1. Surface the failure through the **Adapter Probe** reason. Per [CONCEPTS.md](../../../CONCEPTS.md), the probe's reason text is written to be shown verbatim to the user, and it is the one signal distinguishing a real canvas from a placeholder.
-2. Disable the Save command, so a divergent engine state cannot be written back over a correct file.
+PR #14 (`901516c`) landed the verification guard as [server/value-fidelity.ts](../../../server/value-fidelity.ts) plus its OOXML reader [server/ooxml-cache.ts](../../../server/ooxml-cache.ts). The oracle is the one this doc identified: the cached `<v>` Excel writes alongside every formula it evaluated. The placement is different from the original recommendation, and the difference matters when reading either file:
 
-The point is that the canvas must not render a plausible-looking grid full of `#CALC!` with a live Save button next to it.
+| | Originally recommended | What shipped |
+| --- | --- | --- |
+| Where | Client adapter, after `whenReady()` | Server, in `workbook-service.ts` — at byte admission on save and again on validate |
+| Scope | The canvas | Every editing lane (canvas, MCP tools, headless scripts) — the service is the single funnel |
+| Reported through | The Adapter Probe reason | A dedicated fidelity report on the save/validate result |
+| On mismatch | Disable the Save command | Refuse the save outright; preserve the attempted bytes as a `.fidelity-refused-*.xlsx` sibling |
+
+Placing it server-side rather than in the adapter is the stronger choice for the reason `workbook-service.ts` exists at all: one policy, every lane. An adapter-side guard would have protected the canvas and left the headless and MCP lanes able to write the same `#CALC!`.
+
+Three properties of the shipped gate are worth knowing before relying on it:
+
+- **It refuses exactly one deterministic shape** — the file recorded a *non-error* result for a formula and the engine reports an *error literal* (`#CALC!`, `#VALUE!`, `#NAME?`, …) for that same cell. That is the high-signal shape of this defect. It is not a general value-comparison gate and will not catch an engine that computes a plausible wrong *number*.
+- **Everything short of that is `unverified`, never `passed`** — unreadable bytes, no cached values, a sheet the engine cannot resolve, an engine that will not load. Unverified saves are **allowed to proceed**, because refusing them would convert missing evidence into data loss. They are reported as unverified.
+- **The sample is bounded** at `FIDELITY_CELL_LIMIT` (500 cells), and the report carries `truncated` when the file has more.
+
+The verdict surfaces as warn-text in both UIs — [src/App.tsx:313-321](../../../src/App.tsx) and [plugins/mog-canvas/ui/src/mcp-app.ts:116-125](../../../plugins/mog-canvas/ui/src/mcp-app.ts) — styled so it survives Compact Mode, which is the same protection the Adapter Probe route would have inherited.
+
+The point still stands as originally written: the canvas must not render a plausible-looking grid full of `#CALC!` with a live Save button next to it. The grid still renders — the SDK defect is upstream — but the Save no longer lands.
 
 ## Why This Works
 
@@ -112,17 +128,18 @@ Finally, the design follows invariants this repo already enforces rather than in
 ## Prevention
 
 - **Treat a cached-value/computed-value mismatch as a first-class import failure**, not a rendering quirk. Build the comparison into the open path so it is checked every time rather than remembered.
-- **Never let a canvas Save be reachable from an unverified engine state.** Saves in this repo are last-write-wins and are refused only on revision conflict ([AGENTS.md:67-68](../../../AGENTS.md), [server/workbook-service.ts:11-14](../../../server/workbook-service.ts)) — nothing in that path inspects whether the bytes being written are semantically sound. Correctness of content is the canvas's job, and it currently does not do it.
+- **Never let a canvas Save be reachable from an unverified engine state.** Saves in this repo are last-write-wins and were originally refused only on revision conflict ([AGENTS.md:67-68](../../../AGENTS.md), [server/workbook-service.ts:11-14](../../../server/workbook-service.ts)) — nothing in that path inspected whether the bytes being written were semantically sound. The value-fidelity gate is now the second refusal reason in that same funnel, which is where it belongs: durability, identity, and content correctness are three separate properties and each needs its own check.
 - **When an engine reports a settled value, verify it against something outside the engine.** "It returned without erroring" is not evidence. The 0 ms `recalculateAll()` is the canonical example of a confident wrong answer.
-- **A same-engine round trip is not a fidelity check.** The save path already reopens a written file with the headless engine and reads it back before trusting it ([server/workbook-service.ts:15-16](../../../server/workbook-service.ts)) — but a value the engine got wrong on import survives that round trip intact, because the engine agrees with itself. Value fidelity has to be measured against the file's own cached values.
+- **A same-engine round trip is not a fidelity check.** The save path already reopens a written file with the headless engine and reads it back before trusting it ([server/workbook-service.ts:15-16](../../../server/workbook-service.ts)) — but a value the engine got wrong on import survives that round trip intact, because the engine agrees with itself. Value fidelity has to be measured against the file's own cached values. This is now the definition of **Value Fidelity** in [CONCEPTS.md](../../../CONCEPTS.md) and the contract of `checkValueFidelity`.
+- **Separate a size cost from a correctness cost before filing either.** The ~104 s freeze and the `#CALC!` results arrived on the same workbook and read as one incident. They are not: a same-size workbook with no calculated columns pays the same freeze, and a small workbook with the same formula shapes shows no error. Two symptoms on one file is a coincidence until a controlled second file says otherwise.
 - **Do not accept a small repro as proof of absence.** The `openpyxl` minimal file did not reproduce this; the defect is size- and mix-dependent. When a bug does not shrink, that is data about the bug, not grounds to dismiss it.
 - **Keep the disproven diagnosis visible.** "Mog can't do `SUMIFS` on structured references" was written down before it was tested, and it sent the next reader in the wrong direction. Per the evidence-discipline section of [AGENTS.md:87-99](../../../AGENTS.md), this repo separates verified from assumed on purpose — a wrong diagnosis left standing costs more than no diagnosis.
 
 ## Related Issues
 
 - [docs/solutions/ui-bugs/compact-mode-hid-adapter-failure-warning.md](../ui-bugs/compact-mode-hid-adapter-failure-warning.md) — establishes the Adapter Probe as the single surface a degradation must reach, and the compact-mode rules that keep it visible. That is the channel the proposed guard would report through. Note that its probe-failure framing assumes the live canvas failed to resolve; this defect is a second failure class where the canvas resolves fine and the *data* is wrong.
-- [docs/solutions/design-patterns/crash-safe-workbook-saves.md](../design-patterns/crash-safe-workbook-saves.md) — documents the save pipeline that would faithfully persist `#CALC!`. Byte-level save safety is not value-level save safety: a save carrying `#CALC!` is durable, non-torn, and revision-clean while still destroying a delivered file.
+- [docs/solutions/design-patterns/crash-safe-workbook-saves.md](../design-patterns/crash-safe-workbook-saves.md) — documents the save pipeline that would otherwise faithfully persist `#CALC!`. Byte-level save safety is not value-level save safety: a save carrying `#CALC!` is durable, non-torn, and revision-clean while still destroying a delivered file. The value-fidelity gate is the layer that closes that gap, in the same funnel and with the same "preserve the attempted bytes, do not silently choose a winner" handling.
 - [docs/solutions/integration-issues/mog-sdk-node-subpath-and-proxy-introspection.md](mog-sdk-node-subpath-and-proxy-introspection.md) — the repo's catalog of `@mog-sdk/sdk` behaviors that guessing gets wrong. Its read-back-from-disk verification rule is the nearest existing prevention rule, and this defect shows where it is insufficient.
-- [docs/solutions/design-patterns/multi-pane-canvas-embedding-via-url-flags.md](../design-patterns/multi-pane-canvas-embedding-via-url-flags.md) — each compare pane is an independent engine runtime with its own Save, so an import-time miscalculation reproduces in every pane and the guard must gate Save per pane.
+- [docs/solutions/design-patterns/multi-pane-canvas-embedding-via-url-flags.md](../design-patterns/multi-pane-canvas-embedding-via-url-flags.md) — each compare pane is an independent engine runtime with its own Save, so an import-time miscalculation reproduces in every pane. Gating server-side rather than per-adapter covers all panes without per-pane wiring; it is also why the compare view pays the import cost once per pane, which is the freeze multiplied by pane count.
 - [docs/solutions/runtime-errors/wasm-bindgen-ignores-wasm-base-url.md](../runtime-errors/wasm-bindgen-ignores-wasm-base-url.md) — prior instance of the same detection lesson: a response that looks successful but carries wrong content stays invisible until something downstream consumes it.
 - No matching GitHub issues; this repo tracks related work via PRs rather than issues.

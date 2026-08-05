@@ -24,6 +24,14 @@ Agreement between the values a spreadsheet engine computes for a workbook and th
 
 It is a separate property from durability and from identity: a save can be non-torn, fully flushed, and matched to the expected Workbook Revision while still carrying values the engine got wrong. Only the file's own recorded results are an independent reference — re-reading a value back through the engine that produced it merely confirms the engine agrees with itself.
 
+### Fidelity Verdict
+
+The three-state judgment of Value Fidelity for a specific set of workbook bytes: verified in agreement, verified in disagreement, or unverified.
+
+The third state is load-bearing and never collapses into the first. Absent or unreadable evidence — no recorded results to compare against, bytes the engine will not open, a sheet it cannot resolve — yields *unverified*, not agreement. Only a disagreement the check actually observed refuses a save; an unverified save is permitted to proceed, because refusing on missing evidence would turn a gap in knowledge into lost work. It must, however, be reported as unverified wherever it is shown, since a reader who sees no warning will assume the stronger claim. A refused save preserves its attempted bytes separately rather than discarding them, as a conflicting save does.
+
+The verdict is scoped to exact bytes, so it travels with a Workbook Revision rather than with a file or a Workbook Session. It is also a sampled judgment over a bounded number of formulas, and reports when the file carried more than it examined — agreement is evidence, not proof.
+
 ## Host validation
 
 ### Mog Canvas
