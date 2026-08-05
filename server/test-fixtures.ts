@@ -119,6 +119,26 @@ function textCell(address: string, text: string): string {
   return `<c r="${address}" t="inlineStr"><is><t>${text}</t></is></c>`;
 }
 
+/**
+ * A run of single-formula rows.
+ *
+ * Model sheets need enough populated cells to be classifiable: a two-cell
+ * sheet is honestly `indeterminate`, so a fixture meant to exercise model-role
+ * behavior has to look like a model rather than lean on a lowered threshold.
+ */
+function formulaRows(
+  from: number,
+  to: number,
+  at: (row: number) => { address: string; formula: string },
+): string {
+  const rows: string[] = [];
+  for (let r = from; r <= to; r += 1) {
+    const { address, formula } = at(r);
+    rows.push(`<row r="${r}">${cell(address, '0', { formula })}</row>`);
+  }
+  return rows.join('');
+}
+
 function memoize<T>(build: () => T): () => T {
   let value: T | undefined;
   return () => (value ??= build());
@@ -139,6 +159,7 @@ export const modelFixture = memoize(() =>
           name: 'Summary',
           xml:
             '<dimension ref="A1:F20"/><sheetData>' +
+            formulaRows(1, 8, (r) => ({ address: `B${r}`, formula: `Drivers!A1*${r}` })) +
             `<row r="20">${cell('F20', '42', { formula: 'Estimate!B66' })}` +
             `${cell('F21', '3', { formula: 'Drivers!A1+1' })}</row>` +
             '</sheetData>',
@@ -147,6 +168,7 @@ export const modelFixture = memoize(() =>
           name: 'Estimate',
           xml:
             '<dimension ref="A1:B66"/><sheetData>' +
+            formulaRows(1, 8, (r) => ({ address: `A${r}`, formula: `Data!B${r + 1}` })) +
             `<row r="66">${cell('B66', '42', { formula: 'SUM(Data!B2:B10)' })}` +
             `${cell('C66', '4', { formula: 'B66*TaxRate' })}</row>` +
             '</sheetData>',
@@ -157,6 +179,7 @@ export const modelFixture = memoize(() =>
             '<dimension ref="A1:A2"/><sheetData>' +
             `<row r="1">${cell('A1', '2', { formula: 'Rates!C1*100' })}</row>` +
             `<row r="2">${cell('A2', '7', { formula: 'MissingName+1' })}</row>` +
+            formulaRows(3, 10, (r) => ({ address: `A${r}`, formula: `Rates!C1*${r}` })) +
             '</sheetData>',
         },
         {
@@ -327,6 +350,7 @@ export const mixedFixture = memoize(() => {
           '<dimension ref="A1:B3"/><sheetData>' +
           `<row r="1">${cell('A1', '5', { formula: 'Estimate!A1' })}${cell('B1', '6', { formula: 'Estimate!A1*2' })}</row>` +
           `<row r="2">${cell('A2', '7', { formula: 'A1+B1' })}</row>` +
+          formulaRows(3, 9, (r) => ({ address: `A${r}`, formula: `A2*${r}` })) +
           '</sheetData>',
       },
       {
@@ -334,6 +358,7 @@ export const mixedFixture = memoize(() => {
         xml:
           '<dimension ref="A1:A1"/><sheetData>' +
           `<row r="1">${cell('A1', '5', { formula: 'SUM(Raw!B2:B301)' })}</row>` +
+          formulaRows(2, 8, (r) => ({ address: `A${r}`, formula: `Raw!B${r}*2` })) +
           '</sheetData>',
       },
       {

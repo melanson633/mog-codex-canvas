@@ -19,7 +19,8 @@
  * so both the HTTP bridge and the MCP tools can return structured,
  * actionable failures without inventing their own taxonomy.
  */
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { revisionOf } from './workbook-revision.ts';
 import { copyFile, open, readFile, readdir, rename, rm, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import {
@@ -103,9 +104,7 @@ async function policy<T>(action: () => Promise<T>): Promise<T> {
   }
 }
 
-export function revisionOf(bytes: Uint8Array): string {
-  return createHash('sha256').update(bytes).digest('hex');
-}
+export { revisionOf };
 
 export interface WorkbookEntry {
   readonly name: string;
