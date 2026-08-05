@@ -90,6 +90,10 @@ export interface CachedValueExtract {
 }
 
 export function unescapeXml(text: string): string {
+  // Seven passes over a string that cannot contain an entity is the single
+  // most-repeated operation in the byte-first stages — every cell address and
+  // every cached value goes through here, and almost none of them are escaped.
+  if (!text.includes('&')) return text;
   return text
     .replaceAll(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
     .replaceAll(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number(dec)))
@@ -100,8 +104,20 @@ export function unescapeXml(text: string): string {
     .replaceAll('&amp;', '&');
 }
 
+/**
+ * Compiled once per attribute name. The byte-first stages call `attr` twice
+ * per cell, so on a 100,000-cell sheet a fresh `new RegExp` per call was
+ * costing more than the whole XML scan it was helping with.
+ */
+const ATTR_PATTERNS = new Map<string, RegExp>();
+
 export function attr(tag: string, name: string): string | null {
-  const match = tag.match(new RegExp(`(?:^|\\s)${name}="([^"]*)"`));
+  let pattern = ATTR_PATTERNS.get(name);
+  if (!pattern) {
+    pattern = new RegExp(`(?:^|\\s)${name}="([^"]*)"`);
+    ATTR_PATTERNS.set(name, pattern);
+  }
+  const match = pattern.exec(tag);
   return match ? unescapeXml(match[1]) : null;
 }
 

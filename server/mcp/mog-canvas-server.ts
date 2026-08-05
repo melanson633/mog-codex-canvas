@@ -284,6 +284,27 @@ export function createMogCanvasServer(options: MogCanvasServerOptions): McpServe
     ),
   );
 
+  server.registerTool(
+    'brief_workbook',
+    {
+      title: 'Brief workbook (byte-first)',
+      description:
+        'The one call to make while the canvas is still hydrating: a composed briefing of a workbook read straight from its saved bytes, engine-free. Identity and metadata, named ranges and tables, cross-sheet consumption, then one section per sheet keyed to that sheet\'s own measured role — columns and types for data-shaped sheets, dependency depth and candidate inputs and outputs for formula-shaped ones, both for a sheet that is both. The workbook-level genre hint is reported as a hint and gates nothing. Every sheet carries a notRun block naming each stage it did not get and why, so a cheap briefing never reads as an empty one; a derivation trace appears only where the measured depth earns it and states the depth when it declines. Anomalies collect cycles, unresolved references, claimed-versus-observed extent divergences, redactions, and any cap that bit. No raw cell values and no high-risk personal data are emitted — use read_range for values. The structured object is the authority; the prose summary is derived from it.',
+      inputSchema: { name: z.string().describe('Workbook name relative to the authorized root') },
+    },
+    guarded(async ({ name }: { name: string }) => {
+      const result = await service.brief(name);
+      const briefing = result.briefing;
+      const summary =
+        briefing.status === 'briefed'
+          ? `${result.name}: ${briefing.sheets.length} sheet(s) briefed in ` +
+            `${briefing.latency.totalMs} ms, ${briefing.anomalies.length} anomaly/anomalies. ` +
+            `${result.provenance}\n\n${briefing.summary}`
+          : `${result.name} is not readable as .xlsx: ${briefing.reason}`;
+      return ok({ ...result }, summary);
+    }),
+  );
+
   registerAppTool(
     server,
     'open_workbook',

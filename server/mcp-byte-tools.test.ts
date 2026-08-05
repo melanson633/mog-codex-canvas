@@ -1,6 +1,6 @@
 /**
- * Byte-first MCP tools: profile_workbook, read_range, graph_workbook, and
- * describe_sheet_data.
+ * Byte-first MCP tools: profile_workbook, read_range, graph_workbook,
+ * describe_sheet_data, and brief_workbook.
  *
  * These tools exist so an agent can orient on a workbook in milliseconds while
  * the canvas renderer is still hydrating — so the tests run without the engine
@@ -19,7 +19,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { createWorkbookService } from './workbook-service.ts';
 import { createMogCanvasServer } from './mcp/mog-canvas-server.ts';
-import { datasetFixture, modelFixture } from './test-fixtures.ts';
+import { datasetFixture, mixedFixture, modelFixture } from './test-fixtures.ts';
 
 // ---- Fixture builder --------------------------------------------------------
 
@@ -99,6 +99,8 @@ interface Harness {
   readonly root: string;
   call(name: string, args: Record<string, unknown>): Promise<CallToolResult>;
   payload<T>(name: string, args: Record<string, unknown>): Promise<T>;
+  /** Tool names the server advertises, so registration is proven, not assumed. */
+  tools(): Promise<string[]>;
 }
 
 async function harness(t: { after(fn: () => Promise<void> | void): void }): Promise<Harness> {
@@ -119,6 +121,10 @@ async function harness(t: { after(fn: () => Promise<void> | void): void }): Prom
   return {
     root,
     call,
+    async tools(): Promise<string[]> {
+      const listed = await client.listTools();
+      return listed.tools.map((tool) => tool.name);
+    },
     async payload<T>(name: string, args: Record<string, unknown>): Promise<T> {
       const result = await call(name, args);
       if (result.isError) {
@@ -467,4 +473,72 @@ test('mcp: profile_workbook now carries metadata without disturbing its old fiel
   assert.equal(result.profile.sheets.length, 5);
   assert.match(result.profile.genreBasis, /uncalibrated/i);
   assert.match(result.provenance, /as-saved at revision/);
+});
+
+/** What `brief_workbook` puts on the wire: composed sections, no closures. */
+interface BriefPayloadShape {
+  readonly name: string;
+  readonly provenance: string;
+  readonly briefing: {
+    readonly status: string;
+    readonly provenance: string;
+    readonly identity: { readonly id: string; readonly genreHint: string | null };
+    readonly consumption: { readonly id: string };
+    readonly sheets: readonly {
+      readonly id: string;
+      readonly sheet: string;
+      readonly role: string;
+      readonly roleBasis: string;
+      readonly dataset: { readonly columns: readonly { readonly redacted: boolean }[] } | null;
+      readonly model: { readonly maxDepth: number } | null;
+      readonly notRun: readonly { readonly stage: string; readonly reason: string }[];
+    }[];
+    readonly anomalies: readonly { readonly kind: string }[];
+    readonly latency: { readonly totalMs: number };
+    readonly summary: string;
+  };
+}
+
+test('mcp: brief_workbook composes the staged pipeline into sections and prose', async (t) => {
+  const h = await harness(t);
+  await writeFile(join(h.root, 'mixed.xlsx'), mixedFixture());
+
+  const tools = await h.tools();
+  assert.ok(tools.includes('brief_workbook'), 'brief_workbook is not registered');
+
+  // One call, both halves: the prose and the payload have to agree with each
+  // other, and the measured latency they both quote changes between calls.
+  const call = await h.call('brief_workbook', { name: 'mixed.xlsx' });
+  assert.equal(call.isError, undefined, JSON.stringify(call.content));
+  const text = (call.content as { type: string; text?: string }[]).find(
+    (item) => item.type === 'text',
+  )?.text;
+  assert.ok(text, 'brief_workbook returned no prose summary');
+  const result = (call.structuredContent ?? {}) as unknown as BriefPayloadShape;
+  const briefing = result.briefing;
+  assert.equal(briefing.status, 'briefed');
+
+  // One section per sheet, each keyed to its own measured role — never to the
+  // workbook genre, which the identity section reports as a hint and nothing
+  // downstream reads.
+  const roles = new Map(briefing.sheets.map((sheet) => [sheet.sheet, sheet.role]));
+  assert.ok(roles.size >= 2, 'the briefing lost sheets');
+  assert.ok([...roles.values()].some((role) => role !== [...roles.values()][0]),
+    'every sheet got the same role, so the section keying proves nothing');
+  for (const sheet of briefing.sheets) {
+    assert.ok(sheet.roleBasis.length > 0, `${sheet.sheet} carries no role basis`);
+    assert.equal(sheet.id, `sheet.${sheet.sheet}`);
+    // Unknown is stated, never left as an absence.
+    if (!sheet.dataset) assert.ok(sheet.notRun.some((entry) => entry.stage === 'stage-3'));
+    if (!sheet.model) assert.ok(sheet.notRun.some((entry) => entry.stage === 'stage-2b'));
+  }
+
+  // The prose an agent reads first carries the as-saved provenance verbatim.
+  assert.ok(text.includes(result.provenance), 'the summary dropped the provenance');
+  assert.equal(briefing.provenance, result.provenance);
+  assert.ok(text.includes(briefing.summary), 'the summary and the payload prose disagree');
+
+  // Nothing survived the wire that a closure would have: the payload is data.
+  const wire = JSON.stringify(result);
+  assert.ok(!wire.includes('function'), 'a function leaked into the payload');
 });

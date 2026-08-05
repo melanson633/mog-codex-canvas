@@ -44,6 +44,7 @@ import {
   type UnreadableGraph,
 } from './workbook-graph.ts';
 import { describeSheetData, type SheetDataResult } from './sheet-schema.ts';
+import { briefWorkbook, type BriefingResult } from './workbook-briefing.ts';
 import {
   checkValueFidelity,
   fidelityNeedsEngine,
@@ -183,6 +184,14 @@ export interface SheetDataDescriptionResult {
   readonly name: string;
   readonly revision: string;
   readonly description: SheetDataResult;
+  readonly fidelity: FidelityReport | null;
+  readonly provenance: string;
+}
+
+export interface WorkbookBriefingResult {
+  readonly name: string;
+  readonly revision: string;
+  readonly briefing: BriefingResult;
   readonly fidelity: FidelityReport | null;
   readonly provenance: string;
 }
@@ -362,6 +371,13 @@ export interface WorkbookService {
     sheet: string,
     options?: SheetDataOptions,
   ): Promise<SheetDataDescriptionResult>;
+
+  /**
+   * The composed hydration briefing: one read, the staged pipeline, one
+   * per-sheet role-keyed answer an agent can act on while the renderer is
+   * still hydrating.
+   */
+  brief(name: string): Promise<WorkbookBriefingResult>;
 
   /** Open a tracked session: bytes + the revision saves must be based on. */
   openSession(name: string): Promise<OpenResult>;
@@ -546,6 +562,24 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
       description: describeSheetData(bytes, sheet, options),
       fidelity: fidelityCache.get(revision) ?? null,
       provenance: byteProvenance(revision),
+    };
+  }
+
+  /**
+   * The hydration briefing: one read, the staged pipeline over those bytes,
+   * one composed answer. Which stages run — and what each sheet reports as
+   * not run — lives in ./workbook-briefing beside the composition that
+   * reports it.
+   */
+  async function brief(name: string): Promise<WorkbookBriefingResult> {
+    const { bytes, revision } = await read(name);
+    const provenance = byteProvenance(revision);
+    return {
+      name,
+      revision,
+      briefing: briefWorkbook(bytes, { revision, provenance }),
+      fidelity: fidelityCache.get(revision) ?? null,
+      provenance,
     };
   }
 
@@ -886,6 +920,7 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
     readRange,
     graph,
     describeSheet,
+    brief,
 
     async openSession(name) {
       const { bytes, revision } = await read(name);
