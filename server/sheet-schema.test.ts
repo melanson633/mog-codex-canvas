@@ -16,6 +16,7 @@ import {
   type ColumnProfile,
   type SheetDataDescription,
 } from './sheet-schema.ts';
+import { classifySheetRoles, type SheetRolesReport } from './sheet-roles.ts';
 import { datasetFixture, mixedFixture, part, writeZipStored } from './test-fixtures.ts';
 
 function described(
@@ -320,4 +321,171 @@ test('schema: non-ZIP bytes return the typed unreadable failure', () => {
   const result = describeSheetData(Buffer.from('not a zip archive'), 'Raw');
   assert.equal(result.status, 'unreadable');
   assert.ok(result.status === 'unreadable' && result.reason.length > 0);
+});
+
+// ---- R38: the guard's inputs ------------------------------------------------
+//
+// The guard's logic was never the problem — what it was handed was. Each case
+// below feeds it a shape that used to reach it wrong, so the column it names
+// and the column it protects are the same column. A failure here is a release
+// blocker: it means high-risk data was profiled, or a clean bill of health was
+// issued for a column nothing looked at.
+
+/** A birthdate column, because the SSN value-shape rule would mask the header bug. */
+const DOB_HEADER = 'Date of Birth';
+
+function columnAt(description: SheetDataDescription, letter: string): ColumnProfile {
+  const found = description.columns.find((entry) => entry.letter === letter);
+  assert.ok(found, `no column at ${letter}`);
+  return found;
+}
+
+/**
+ * A header row with a hole in it: A1 is blank, so stage 1's label list holds
+ * two entries for columns B and C while the body starts at column A.
+ */
+function gappedHeaderSheet(rows = 15, consumer = consumes('C', 12)) {
+  const header = `<row r="1">${text('B1', 'Name')}${text('C1', DOB_HEADER)}</row>`;
+  const body: string[] = [];
+  for (let index = 0; index < rows; index += 1) {
+    const r = index + 2;
+    body.push(
+      `<row r="${r}">${num(`A${r}`, index)}${text(`B${r}`, `row ${index}`)}${num(`C${r}`, 30000 + index)}</row>`,
+    );
+  }
+  return workbook([{ name: 'Data', rows: header + body.join('') }, { name: 'Use', rows: consumer }]);
+}
+
+/** A merged single-cell title sitting above the real header row. */
+function titledSheet(rows = 15) {
+  const title = `<row r="1">${text('A1', 'Payroll Register')}</row>`;
+  const header = `<row r="2">${text('A2', 'Id')}${text('B2', 'Name')}${text('C2', DOB_HEADER)}</row>`;
+  const body: string[] = [];
+  for (let index = 0; index < rows; index += 1) {
+    const r = index + 3;
+    body.push(
+      `<row r="${r}">${num(`A${r}`, index)}${text(`B${r}`, `row ${index}`)}${num(`C${r}`, 30000 + index)}</row>`,
+    );
+  }
+  return workbook([
+    { name: 'Data', rows: title + header + body.join('') },
+    { name: 'Use', rows: consumes('C', 12, 1) },
+  ]);
+}
+
+test('R38: a blank header cell does not shift the guard onto a neighbouring column', () => {
+  const description = described(gappedHeaderSheet(), 'Data');
+  // Labels are matched by source column, so the hole at A leaves B and C where
+  // the file put them rather than sliding every later label one column left.
+  assert.equal(columnAt(description, 'A').header, null);
+  assert.equal(columnAt(description, 'B').header, 'Name');
+  assert.equal(columnAt(description, 'C').header, DOB_HEADER);
+
+  const birthdate = columnAt(description, 'C');
+  assert.equal(birthdate.redacted, true);
+  assert.match(birthdate.redactionReason ?? '', /birthdate/);
+  assert.match(birthdate.redactionReason ?? '', /R38/);
+  assert.equal(birthdate.min, null);
+  assert.equal(birthdate.max, null);
+  assert.equal(birthdate.distinctCount, null);
+  // Present, not omitted: the shape of the column still travels.
+  assert.equal(birthdate.rowCount, 15);
+  assert.equal(birthdate.nullCount, 0);
+
+  // ...and the neighbour is not redacted in its place.
+  assert.equal(columnAt(description, 'B').redacted, false);
+});
+
+test('R38: a single-cell title row is not accepted as the header row', () => {
+  const description = described(titledSheet(), 'Data');
+  assert.equal(description.headerSource, 'detected-row');
+  assert.match(description.headerSourceBasis, /detected header row 2/);
+  assert.deepEqual(
+    description.columns.map((entry) => entry.header),
+    ['Id', 'Name', DOB_HEADER],
+  );
+  // Row 2 is labels, not data: counting it as a body row would inflate every
+  // row count by one and put a text cell in the birthdate column.
+  assert.equal(columnAt(description, 'C').rowCount, 15);
+  const birthdate = columnAt(description, 'C');
+  assert.equal(birthdate.redacted, true);
+  assert.equal(birthdate.min, null);
+  assert.equal(birthdate.max, null);
+});
+
+test('R38: stage 1 marks its own labels, before any statistic exists', () => {
+  const roles = classifySheetRoles(titledSheet());
+  assert.equal(roles.status, 'classified');
+  const data = (roles as SheetRolesReport).sheets.find((sheet) => sheet.name === 'Data');
+  assert.ok(data);
+  assert.equal(data.header.row, 2);
+  assert.equal(data.header.confident, true);
+  assert.deepEqual(
+    data.header.labels.map((entry) => entry.column),
+    [1, 2, 3],
+  );
+  const birthdate = data.header.labels.find((entry) => entry.label === DOB_HEADER);
+  assert.ok(birthdate);
+  assert.equal(birthdate.redacted, true);
+  assert.match(birthdate.redactionReason ?? '', /R38/);
+  assert.equal(data.header.labels[0].redacted, false);
+  assert.equal(data.header.labels[0].redactionReason, null);
+});
+
+test('R38: the zero-consumption path states redaction rather than claiming none', () => {
+  // Nothing references this sheet, so it stops at box plus headers — the
+  // shallowest path, and the one most sheets take.
+  const description = described(
+    dataSheet(['Id', 'Taxpayer ID'], 15, (r, index) => num(`A${r}`, index) + num(`B${r}`, index)),
+    'Data',
+  );
+  assert.match(description.statisticsSkipped ?? '', /bounding box plus headers/);
+  const taxpayer = column(description, 'Taxpayer ID');
+  assert.equal(taxpayer.redacted, true);
+  assert.match(taxpayer.redactionReason ?? '', /taxpayer identification number/);
+  assert.equal(column(description, 'Id').redacted, false);
+  // The limitation is stated rather than implied away: no cell was read here,
+  // so only the header half of the rule could run.
+  assert.match(description.statisticsSkipped ?? '', /header-driven only/);
+});
+
+test('R38: the depth override reaches the gate and never the guard, on either path', () => {
+  const gapped = described(gappedHeaderSheet(), 'Data', { override: true });
+  const birthdate = columnAt(gapped, 'C');
+  assert.equal(birthdate.depth, 'full');
+  assert.match(birthdate.depthBasis, /explicit override/);
+  assert.equal(birthdate.redacted, true);
+  assert.equal(birthdate.min, null);
+  assert.equal(birthdate.max, null);
+  assert.equal(birthdate.distinctCount, null);
+  assert.deepEqual(
+    birthdate.skipped.map((entry) => entry.what),
+    ['extents', 'distinct'],
+  );
+  for (const entry of birthdate.skipped) assert.match(entry.threshold, /not overridable/);
+
+  // The override lifts the zero-consumption sheet onto the full path; the
+  // guard is waiting there too.
+  const unconsumed = described(
+    dataSheet(['Id', 'Taxpayer ID'], 15, (r, index) => num(`A${r}`, index) + num(`B${r}`, index)),
+    'Data',
+    { override: true },
+  );
+  assert.equal(unconsumed.statisticsSkipped, null);
+  const taxpayer = column(unconsumed, 'Taxpayer ID');
+  assert.equal(taxpayer.redacted, true);
+  assert.equal(taxpayer.min, null);
+  assert.equal(taxpayer.distinctCount, null);
+});
+
+test('R38: no redacted column leaks a value through the serialized result', () => {
+  for (const description of [
+    described(gappedHeaderSheet(), 'Data'),
+    described(titledSheet(), 'Data', { override: true }),
+  ]) {
+    const serialized = JSON.stringify(description);
+    for (const value of ['30000', '30014']) {
+      assert.equal(serialized.includes(value), false, `result leaked a raw value: ${value}`);
+    }
+  }
 });

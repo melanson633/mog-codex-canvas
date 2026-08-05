@@ -29,6 +29,7 @@ import {
   type ZipEntry,
 } from './ooxml-cache.ts';
 import { parseRange } from './context-bus.ts';
+import { redactionReasonFor } from './redaction.ts';
 import { revisionOf } from './workbook-revision.ts';
 import { stagesNotRun, type ExtractionStage } from './extraction-stages.ts';
 
@@ -69,6 +70,12 @@ export const ROLE_THRESHOLDS = {
   minPopulatedCells: 8,
   /** Share of a candidate row's cells that must be non-numeric to be a header. */
   headerLabelShare: 0.8,
+  /**
+   * At or below this many populated cells a top row is a title, not a header,
+   * when the block beneath it is wider. A merged title cell is 100% label and
+   * would otherwise pass the share test outright.
+   */
+  titleRowCells: 1,
   /** Share of non-numeric cells the rows beneath must stay under. */
   bodyLabelShare: 0.5,
   /** Header share at or above which the detection is called confident. */
@@ -109,12 +116,29 @@ export type SheetExtentsResult = SheetExtentsReport | UnreadableSheets;
 
 export type SheetRole = 'dataset' | 'model' | 'mixed' | 'indeterminate';
 
+/**
+ * One header label and the column it was actually read from.
+ *
+ * The column travels with the label because the list *collapses gaps* — a
+ * blank header cell is skipped, not emitted as an empty string. A consumer
+ * that indexes this list positionally against a column number is off by one
+ * per gap, which is how a redaction check ends up reading a neighbour's name.
+ */
+export interface HeaderLabel {
+  /** 1-based worksheet column the label was read from. */
+  readonly column: number;
+  readonly label: string;
+  /** R38: set when the label names high-risk personal data (never omitted). */
+  readonly redacted: boolean;
+  readonly redactionReason: string | null;
+}
+
 export interface HeaderDetection {
   readonly status: 'detected' | 'none';
   /** 1-based row index of the header, or null when none was found. */
   readonly row: number | null;
-  /** Labels in column order; empty when no header was detected. */
-  readonly labels: readonly string[];
+  /** Labels in column order, each carrying its source column; empty when none. */
+  readonly labels: readonly HeaderLabel[];
   readonly confident: boolean;
   readonly basis: string;
 }
@@ -361,19 +385,66 @@ function labelShare(cells: readonly ScannedCell[]): number {
   return cells.filter((c) => c.text !== null && c.text.trim() !== '').length / cells.length;
 }
 
+/**
+ * One label, its source column, and its R38 verdict.
+ *
+ * Stage 1 labels leave the pipeline into MCP output ahead of any Stage 3
+ * statistic, so the guard runs here too. Only the header text exists at this
+ * point, so this is the header-driven half of R38 — the value-shape rule needs
+ * cells Stage 1 has not read.
+ */
+function headerLabel(column: number, label: string): HeaderLabel {
+  const redactionReason = redactionReasonFor(label, []);
+  return { column, label, redacted: redactionReason !== null, redactionReason };
+}
+
+/** Widest populated row strictly below `from`, in cells. */
+function widestBelow(scan: SheetScan, rows: readonly number[], from: number): number {
+  let widest = 0;
+  for (let index = from + 1; index < rows.length; index += 1) {
+    const width = scan.topRows.get(rows[index])?.length ?? 0;
+    if (width > widest) widest = width;
+  }
+  return widest;
+}
+
 function detectHeader(scan: SheetScan): HeaderDetection {
   const rows = [...scan.topRows.keys()].sort((a, b) => a - b);
   if (rows.length === 0) {
     return { status: 'none', row: null, labels: [], confident: false, basis: 'the sheet has no populated cells' };
   }
 
-  const candidateRow = rows[0];
+  // A one-cell row above a wider block is a title, not a header. It is 100%
+  // non-numeric label, so it passes the share test outright and would be
+  // reported as a *confident* header whose single label then stands in for
+  // every column beneath it. Skip past it to the first row wide enough to be
+  // a header, and say that a title row was skipped rather than silently
+  // shifting the answer down a row.
+  let first = 0;
+  const titleRows: number[] = [];
+  while (
+    first < rows.length - 1 &&
+    (scan.topRows.get(rows[first])?.length ?? 0) <= ROLE_THRESHOLDS.titleRowCells &&
+    widestBelow(scan, rows, first) > ROLE_THRESHOLDS.titleRowCells
+  ) {
+    titleRows.push(rows[first]);
+    first += 1;
+  }
+
+  const candidateRow = rows[first];
   const candidate = scan.topRows.get(candidateRow) ?? [];
   const candidateShare = labelShare(candidate);
-  const body = rows.slice(1, HEADER_BODY_ROWS + 1).flatMap((row) => scan.topRows.get(row) ?? []);
+  const body = rows
+    .slice(first + 1, first + 1 + HEADER_BODY_ROWS)
+    .flatMap((row) => scan.topRows.get(row) ?? []);
   const bodyShare = labelShare(body);
+  const skipped =
+    titleRows.length > 0
+      ? `row(s) ${titleRows.join(', ')} skipped as title rows — ` +
+        `${ROLE_THRESHOLDS.titleRowCells} cell or fewer above a wider block; `
+      : '';
   const measured =
-    `row ${candidateRow} is ${(candidateShare * 100).toFixed(0)}% non-numeric labels ` +
+    `${skipped}row ${candidateRow} is ${(candidateShare * 100).toFixed(0)}% non-numeric labels ` +
     `(threshold ${ROLE_THRESHOLDS.headerLabelShare}), the ${body.length} cells beneath it are ` +
     `${(bodyShare * 100).toFixed(0)}% (threshold ${ROLE_THRESHOLDS.bodyLabelShare}) — ${ROLE_BASIS_CAVEAT}`;
 
@@ -398,7 +469,7 @@ function detectHeader(scan: SheetScan): HeaderDetection {
 
   const labels = [...candidate]
     .sort((a, b) => a.col - b.col)
-    .map((c) => c.text ?? '');
+    .map((c) => headerLabel(c.col, c.text ?? ''));
   const confident = candidateShare >= ROLE_THRESHOLDS.headerConfidentShare && body.length > 0;
   const why = confident
     ? measured

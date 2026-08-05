@@ -190,7 +190,14 @@ test('headers: labels come back in column order over numeric data', () => {
   const only = sheet(tableSheet(30, 4), 'S');
   assert.equal(only.header.status, 'detected');
   assert.equal(only.header.row, 1);
-  assert.deepEqual(only.header.labels, ['Col 1', 'Col 2', 'Col 3', 'Col 4']);
+  assert.deepEqual(
+    only.header.labels.map((entry) => entry.label),
+    ['Col 1', 'Col 2', 'Col 3', 'Col 4'],
+  );
+  assert.deepEqual(
+    only.header.labels.map((entry) => entry.column),
+    [1, 2, 3, 4],
+  );
   assert.equal(only.header.confident, true);
 });
 

@@ -413,9 +413,12 @@ function datasetViewOf(
       id,
       headerSource: role.header.status === 'detected' ? 'stage-1-detection' : 'none',
       headerSourceBasis: role.header.basis,
-      headers: role.header.labels,
+      headers: role.header.labels.map((entry) => entry.label),
       columns: [],
-      redactedColumns: [],
+      // Stage 1 runs the R38 guard over its own labels, so an unmeasured sheet
+      // still states which of its columns are redacted rather than reporting
+      // none because stage 3 never ran.
+      redactedColumns: role.header.labels.filter((entry) => entry.redacted).map((entry) => entry.label),
       statisticsSkipped: true,
       statisticsSkippedReason: schema
         ? `stage 3 returned ${schema.status}: ${schema.reason}`

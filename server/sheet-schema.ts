@@ -17,14 +17,17 @@
  *     inbound references, a zero column count means "not seen", not "not used",
  *     so the column is profiled anyway with the blind spot stated.
  *
- * Redaction (R38) runs before any statistic is attached, and no option turns it
+ * Redaction (R38, in `redaction.ts`) runs before any statistic is attached, on
+ * every return path including the zero-consumption one, and no option turns it
  * off. A high-risk column is always *reported* — name, type, row count, null
- * count, `redacted: true`, and the matched reason — never quietly dropped. The
- * asymmetry is owned rather than hidden: an SSN has a recognizable value shape,
- * a birthdate does not. Without `styles.xml` a birth date is indistinguishable
- * from any other serial number, so birthdate redaction is header-driven only.
+ * count, `redacted: true`, and the matched reason — never quietly dropped.
  * R39 — no raw values as samples, anywhere — is what keeps a mis-headed date
  * column from leaking a roster regardless.
+ *
+ * Headers are looked up *by column number*, never by position. Stage 1's label
+ * list collapses blank header cells rather than emitting them, so one gap to
+ * the left of an SSN column would otherwise shift every later label by one and
+ * run the guard against a neighbour's name.
  *
  * Engine-free: nothing here may import @mog-sdk.
  */
@@ -38,6 +41,7 @@ import {
 } from './ooxml-cache.ts';
 import { buildConsumptionIndex, type ConsumptionIndexReport } from './consumption-index.ts';
 import { classifySheetRoles, type Box, type SheetRoleReport, type SheetRolesReport } from './sheet-roles.ts';
+import { SHAPE_SAMPLE, redactionReasonFor } from './redaction.ts';
 import { metadataFromEntries, type WorkbookMetadata } from './workbook-metadata.ts';
 import { revisionOf } from './workbook-revision.ts';
 import { stagesNotRun, type ExtractionStage } from './extraction-stages.ts';
@@ -156,43 +160,6 @@ export interface DescribeSheetDataOptions {
   readonly roles?: SheetRolesReport;
   readonly consumption?: ConsumptionIndexReport;
   readonly metadata?: WorkbookMetadata;
-}
-
-// ---- Redaction --------------------------------------------------------------
-
-const HIGH_RISK_HEADERS: readonly { pattern: RegExp; label: string }[] = [
-  { pattern: /\bssn\b/i, label: 'header names a social-security number' },
-  { pattern: /social\s*security/i, label: 'header names a social-security number' },
-  { pattern: /taxpayer\s*id/i, label: 'header names a taxpayer identification number' },
-  { pattern: /\btin\b/i, label: 'header names a taxpayer identification number' },
-  { pattern: /\bdob\b/i, label: 'header names a birthdate' },
-  { pattern: /birth\s*date/i, label: 'header names a birthdate' },
-  { pattern: /date\s*of\s*birth/i, label: 'header names a birthdate' },
-  { pattern: /\bbirthdate\b/i, label: 'header names a birthdate' },
-];
-
-const SSN_SHAPE = /^\s*\d{3}-\d{2}-\d{4}\s*$/;
-
-/** Value-shape sampling is bounded: the shape repeats or it is not the shape. */
-const SHAPE_SAMPLE = 50;
-
-function redactionReasonFor(header: string | null, texts: readonly string[]): string | null {
-  if (header) {
-    for (const { pattern, label } of HIGH_RISK_HEADERS) {
-      if (pattern.test(header)) {
-        return `${label} — reported as present and redacted, never omitted (R38)`;
-      }
-    }
-  }
-  const sampled = texts.slice(0, SHAPE_SAMPLE);
-  const matches = sampled.filter((text) => SSN_SHAPE.test(text)).length;
-  if (matches > 0 && matches >= Math.ceil(sampled.length / 2)) {
-    return (
-      'values match a social-security number shape (NNN-NN-NNNN) in at least half of the ' +
-      `first ${SHAPE_SAMPLE} populated cells — redaction is by value shape, not by header (R38)`
-    );
-  }
-  return null;
 }
 
 // ---- Cell scan --------------------------------------------------------------
@@ -338,20 +305,22 @@ export function describeSheetData(
   const table = metadata.tables.find((definition) => definition.sheet === sheetName);
   const detectedRow = role?.header.status === 'detected' ? role.header.row : null;
   let headerSource: SheetDataDescription['headerSource'] = 'none';
-  let headers: string[] = [];
-  let firstColumn = 1;
+  /** Labels paired with the column each was read from — never positional. */
+  let headerEntries: { readonly column: number; readonly label: string }[] = [];
   /** The row the labels came from; its cells are labels, not data. */
   let headerRow: number | null = detectedRow;
   if (table && table.columns.length > 0) {
     headerSource = 'table-definition';
-    headers = [...table.columns];
-    firstColumn = colNumber(table.ref.match(/^\$?([A-Za-z]+)/)?.[1] ?? 'A');
+    // A table's column list is dense by definition: it declares one entry per
+    // column of its own ref, so position and column agree here.
+    const tableFirstColumn = colNumber(table.ref.match(/^\$?([A-Za-z]+)/)?.[1] ?? 'A');
+    headerEntries = table.columns.map((label, index) => ({ column: tableFirstColumn + index, label }));
     headerRow = detectedRow ?? (Number(table.ref.match(/^\$?[A-Za-z]+\$?(\d+)/)?.[1] ?? '') || null);
   } else if (detectedRow !== null && role?.header.labels.length) {
     headerSource = 'detected-row';
-    headers = [...role.header.labels];
-    firstColumn = role.observedBox?.startCol ?? 1;
+    headerEntries = role.header.labels.map((entry) => ({ column: entry.column, label: entry.label }));
   }
+  const headerByColumn = new Map(headerEntries.map((entry) => [entry.column, entry.label]));
   const headerSourceBasis =
     headerSource === 'table-definition'
       ? `headers read from the declared table "${table?.displayName ?? table?.name}" — ` +
@@ -414,31 +383,39 @@ export function describeSheetData(
       claimedVsObserved: role?.claimedVsObserved ?? '',
       headerSource,
       headerSourceBasis,
-      columns: headers.map((header, index) => ({
-        ordinal: index + 1,
-        letter: columnLetters(firstColumn + index),
-        header,
-        type: 'blank' as const,
-        observedTypes: [],
-        depth: 'summary' as const,
-        depthBasis:
-          'no statistics were computed: no formula on any other sheet references this sheet, and ' +
-          'the index resolved every reference it saw, so the zero is measured rather than a blind spot',
-        inboundReferences: 0,
-        rowCount: null,
-        nullCount: null,
-        min: null,
-        max: null,
-        extentsNote: null,
-        distinctCount: null,
-        distinctCapped: false,
-        redacted: false,
-        redactionReason: null,
-        skipped: [],
-      })),
+      // The R38 guard runs on this path too. It is the shallowest one and it
+      // fires on every dataset sheet nothing references, so hardcoding
+      // `redacted: false` here states, falsely, that a taxpayer-ID column was
+      // examined and cleared — and a caller trusting that widens on it.
+      columns: headerEntries.map((entry, index) => {
+        const redactionReason = redactionReasonFor(entry.label, []);
+        return {
+          ordinal: index + 1,
+          letter: columnLetters(entry.column),
+          header: entry.label,
+          type: 'blank' as const,
+          observedTypes: [],
+          depth: 'summary' as const,
+          depthBasis:
+            'no statistics were computed: no formula on any other sheet references this sheet, and ' +
+            'the index resolved every reference it saw, so the zero is measured rather than a blind spot',
+          inboundReferences: 0,
+          rowCount: null,
+          nullCount: null,
+          min: null,
+          max: null,
+          extentsNote: null,
+          distinctCount: null,
+          distinctCapped: false,
+          redacted: redactionReason !== null,
+          redactionReason,
+          skipped: [],
+        };
+      }),
       statisticsSkipped:
         'stopped at bounding box plus headers — this sheet has zero measured inbound consumption, ' +
-        'so profiling its columns would spend the budget on data nothing reads',
+        'so profiling its columns would spend the budget on data nothing reads; redaction on this ' +
+        'path is header-driven only, because no cell was read for the value-shape rule to see',
       gating,
       truncated: false,
       truncationReason: null,
@@ -475,7 +452,7 @@ export function describeSheetData(
   const ordered = [...columns.keys()].sort((a, b) => a - b);
   const profiles: ColumnProfile[] = ordered.map((column, index) => {
     const accumulated = columns.get(column)!;
-    const header = headers[column - firstColumn] ?? null;
+    const header = headerByColumn.get(column) ?? null;
     const references = columnReferences.get(column) ?? 0;
     const observedTypes = [...accumulated.types.entries()]
       .filter(([type]) => type !== 'blank')
