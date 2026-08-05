@@ -10,7 +10,8 @@
   },
   "scripts": {
     "dev": "vite",
-    "build:mcp-app": "vite build --config vite.mcp-app.config.ts",
+    "build:mcp-app": "node scripts/ui-bundle.mjs --build",
+    "check:ui-bundle": "node scripts/ui-bundle.mjs",
     "mcp": "node server/mcp/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"server/*.test.ts\" \"scripts/*.test.mjs\"",

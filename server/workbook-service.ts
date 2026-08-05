@@ -19,7 +19,8 @@
  * so both the HTTP bridge and the MCP tools can return structured,
  * actionable failures without inventing their own taxonomy.
  */
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { revisionOf } from './workbook-revision.ts';
 import { copyFile, open, readFile, readdir, rename, rm, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import {
@@ -35,6 +36,15 @@ import {
   type ProfileResult,
   type RangeReadResult,
 } from './workbook-profile.ts';
+import { extractWorkbookMetadata, type WorkbookMetadataResult } from './workbook-metadata.ts';
+import {
+  buildDependencyGraph,
+  toGraphPayload,
+  type GraphPayload,
+  type UnreadableGraph,
+} from './workbook-graph.ts';
+import { describeSheetData, type SheetDataResult } from './sheet-schema.ts';
+import { briefWorkbook, type BriefingResult } from './workbook-briefing.ts';
 import {
   checkValueFidelity,
   fidelityNeedsEngine,
@@ -103,9 +113,7 @@ async function policy<T>(action: () => Promise<T>): Promise<T> {
   }
 }
 
-export function revisionOf(bytes: Uint8Array): string {
-  return createHash('sha256').update(bytes).digest('hex');
-}
+export { revisionOf };
 
 export interface WorkbookEntry {
   readonly name: string;
@@ -134,6 +142,8 @@ export interface WorkbookProfileResult {
   readonly name: string;
   readonly revision: string;
   readonly profile: ProfileResult;
+  /** Document properties, defined names, and table definitions. Additive. */
+  readonly metadata: WorkbookMetadataResult;
   /** Fidelity verdict earned for exactly these bytes, when one exists. */
   readonly fidelity: FidelityReport | null;
   /** Honest label for what these numbers describe. Shown verbatim in UIs. */
@@ -144,6 +154,44 @@ export interface WorkbookRangeResult {
   readonly name: string;
   readonly revision: string;
   readonly read: RangeReadResult;
+  readonly fidelity: FidelityReport | null;
+  readonly provenance: string;
+}
+
+export interface GraphOptions {
+  /** `Sheet!Address` to answer precedent and dependent questions about. */
+  readonly target?: string;
+  /** Hop bound for transitive dependents of `target`. */
+  readonly maxHops?: number;
+  /** Sheets to build regardless of role, for on-demand deep calls. */
+  readonly includeSheets?: readonly string[];
+}
+
+export interface SheetDataOptions {
+  /** Full depth regardless of the materiality gate. Never bypasses redaction. */
+  readonly override?: boolean;
+}
+
+export interface WorkbookGraphResult {
+  readonly name: string;
+  readonly revision: string;
+  readonly graph: GraphPayload | UnreadableGraph;
+  readonly fidelity: FidelityReport | null;
+  readonly provenance: string;
+}
+
+export interface SheetDataDescriptionResult {
+  readonly name: string;
+  readonly revision: string;
+  readonly description: SheetDataResult;
+  readonly fidelity: FidelityReport | null;
+  readonly provenance: string;
+}
+
+export interface WorkbookBriefingResult {
+  readonly name: string;
+  readonly revision: string;
+  readonly briefing: BriefingResult;
   readonly fidelity: FidelityReport | null;
   readonly provenance: string;
 }
@@ -308,6 +356,29 @@ export interface WorkbookService {
    */
   readRange(name: string, sheet: string, range: string): Promise<WorkbookRangeResult>;
 
+  /**
+   * The intra-workbook dependency graph over model-role sheets, from the saved
+   * bytes. Sheets left out are reported with the role that excluded them.
+   */
+  graph(name: string, options?: GraphOptions): Promise<WorkbookGraphResult>;
+
+  /**
+   * Column schema and population statistics for one sheet, at a depth
+   * proportional to measured consumption. High-risk columns are redacted.
+   */
+  describeSheet(
+    name: string,
+    sheet: string,
+    options?: SheetDataOptions,
+  ): Promise<SheetDataDescriptionResult>;
+
+  /**
+   * The composed hydration briefing: one read, the staged pipeline, one
+   * per-sheet role-keyed answer an agent can act on while the renderer is
+   * still hydrating.
+   */
+  brief(name: string): Promise<WorkbookBriefingResult>;
+
   /** Open a tracked session: bytes + the revision saves must be based on. */
   openSession(name: string): Promise<OpenResult>;
 
@@ -432,12 +503,24 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
     );
   }
 
+  /**
+   * Shape plus document metadata, from the saved bytes.
+   *
+   * The metadata block carries `creator` and `lastModifiedBy` read verbatim
+   * from the workbook's own docProps (R41) — real people's names, which
+   * previously never left this tool. Returning them is intended; forwarding
+   * them is not. Callers must treat this result as personal data and keep it
+   * out of commit messages, issues, and anything else public. The same note is
+   * on the `profile_workbook` tool description, which is where the model that
+   * calls it will read it.
+   */
   async function profile(name: string): Promise<WorkbookProfileResult> {
     const { bytes, revision } = await read(name);
     return {
       name,
       revision,
       profile: profileWorkbook(bytes),
+      metadata: extractWorkbookMetadata(bytes),
       fidelity: fidelityCache.get(revision) ?? null,
       provenance: byteProvenance(revision),
     };
@@ -455,6 +538,59 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
       read: readRangeFromBytes(bytes, sheet, range),
       fidelity: fidelityCache.get(revision) ?? null,
       provenance: byteProvenance(revision),
+    };
+  }
+
+  async function graph(name: string, options: GraphOptions = {}): Promise<WorkbookGraphResult> {
+    const { bytes, revision } = await read(name);
+    const built = buildDependencyGraph(bytes, {
+      ...(options.includeSheets ? { includeSheets: options.includeSheets } : {}),
+    });
+    return {
+      name,
+      revision,
+      graph:
+        built.status === 'built'
+          ? toGraphPayload(built, {
+              ...(options.target ? { target: options.target } : {}),
+              ...(options.maxHops === undefined ? {} : { maxHops: options.maxHops }),
+            })
+          : built,
+      fidelity: fidelityCache.get(revision) ?? null,
+      provenance: byteProvenance(revision),
+    };
+  }
+
+  async function describeSheet(
+    name: string,
+    sheet: string,
+    options: SheetDataOptions = {},
+  ): Promise<SheetDataDescriptionResult> {
+    const { bytes, revision } = await read(name);
+    return {
+      name,
+      revision,
+      description: describeSheetData(bytes, sheet, options),
+      fidelity: fidelityCache.get(revision) ?? null,
+      provenance: byteProvenance(revision),
+    };
+  }
+
+  /**
+   * The hydration briefing: one read, the staged pipeline over those bytes,
+   * one composed answer. Which stages run — and what each sheet reports as
+   * not run — lives in ./workbook-briefing beside the composition that
+   * reports it.
+   */
+  async function brief(name: string): Promise<WorkbookBriefingResult> {
+    const { bytes, revision } = await read(name);
+    const provenance = byteProvenance(revision);
+    return {
+      name,
+      revision,
+      briefing: briefWorkbook(bytes, { revision, provenance }),
+      fidelity: fidelityCache.get(revision) ?? null,
+      provenance,
     };
   }
 
@@ -793,6 +929,9 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
     read,
     profile,
     readRange,
+    graph,
+    describeSheet,
+    brief,
 
     async openSession(name) {
       const { bytes, revision } = await read(name);

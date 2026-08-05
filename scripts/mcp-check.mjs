@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { bundleFreshness } from './ui-bundle.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const uiDist = join(repoRoot, 'plugins', 'mog-canvas', 'ui', 'dist');
@@ -79,6 +80,15 @@ async function expectToolError(promise, code) {
 }
 
 // ---- Fixture root -----------------------------------------------------------
+
+// This check is about the server, not the canvas, so a stale bundle is reported
+// rather than rebuilt: spending 30 seconds on a build nothing here drives would
+// be a surprise. It is still said out loud, because the asset assertions below
+// prove the served bytes match the dist — not that the dist matches the source.
+const bundle = await bundleFreshness();
+if (bundle.status !== 'fresh') {
+  console.log(`NOTE  ui bundle is ${bundle.status} — ${bundle.reason}; run npm run build:mcp-app`);
+}
 
 const root = await mkdtemp(join(tmpdir(), 'mog-mcp-check-'));
 await copyFile(join(repoRoot, 'workbooks', 'sample.xlsx'), join(root, 'sample.xlsx'));

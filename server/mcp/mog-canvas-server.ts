@@ -135,7 +135,7 @@ export function createMogCanvasServer(options: MogCanvasServerOptions): McpServe
     {
       title: 'Profile workbook (byte-first)',
       description:
-        'Read a workbook\'s shape straight from its saved OOXML bytes in milliseconds, without opening the Mog engine: per-sheet rows/cells/formulas, cross-sheet reference ratio, table and comment parts, and a labeled genre guess. The provenance string travels with the numbers: this is the truth of the last save on disk, never unsaved canvas edits. Unreadable bytes come back as a typed "unreadable" profile with the reason — unknown is never reported as empty. Use this to orient and plan while the canvas renderer is still hydrating.',
+        'Read a workbook\'s shape straight from its saved OOXML bytes in milliseconds, without opening the Mog engine: per-sheet rows/cells/formulas, cross-sheet reference ratio, table and comment parts, and a labeled genre guess. The provenance string travels with the numbers: this is the truth of the last save on disk, never unsaved canvas edits. Unreadable bytes come back as a typed "unreadable" profile with the reason — unknown is never reported as empty. Use this to orient and plan while the canvas renderer is still hydrating. PERSONAL DATA: the metadata block returns `creator` and `lastModifiedBy` verbatim from the file\'s own document properties (R41). These are real people\'s names. Treat this tool\'s output as personal data — do not paste it into commit messages, issues, pull requests, logs, or any other public or shared document.',
       inputSchema: { name: z.string().describe('Workbook name relative to the authorized root') },
     },
     guarded(async ({ name }: { name: string }) => {
@@ -170,6 +170,137 @@ export function createMogCanvasServer(options: MogCanvasServerOptions): McpServe
           ? `${result.name} ${sheet}!${range}: ${result.read.cells.length} populated cell(s)` +
             `${result.read.truncated ? ' (truncated at the cell cap)' : ''}. ${result.provenance}`
           : `${result.name} ${sheet}!${range}: ${result.read.status} — ${result.read.reason}`;
+      return ok({ ...result }, summary);
+    }),
+  );
+
+  server.registerTool(
+    'graph_workbook',
+    {
+      title: 'Graph workbook dependencies (byte-first)',
+      description:
+        'Build the intra-sheet formula dependency graph straight from the saved bytes, engine-free: nodes, edges, chain depth per sheet, cycles, and candidate inputs and outputs. The graph is built only for sheets whose measured role is model or mixed — every skipped sheet is named with its role and the reason, so "not in the graph" never reads as "no formulas". Honesty caveats travel with the numbers: structured table references, external links, R1C1 text, and shared-formula followers are counted by cause rather than resolved, so operand counts are floors; range operands stay rectangles and are answered by containment, never expanded. Give a target cell as "Sheet!A1" for its precedents and dependents, and a hop bound for transitive dependents. Provenance is load-bearing: this is the truth of the last save on disk, never unsaved canvas edits. Unreadable bytes come back as a typed "unreadable" graph with the reason.',
+      inputSchema: {
+        name: z.string().describe('Workbook name relative to the authorized root'),
+        target: z
+          .string()
+          .optional()
+          .describe('Cell to answer about, qualified as "Sheet!A1"'),
+        maxHops: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe('Hop bound for transitive dependents of the target'),
+        includeSheets: z
+          .array(z.string())
+          .optional()
+          .describe('Sheets to build regardless of role, for an on-demand deep call'),
+      },
+    },
+    guarded(
+      async ({
+        name,
+        target,
+        maxHops,
+        includeSheets,
+      }: {
+        name: string;
+        target?: string;
+        maxHops?: number;
+        includeSheets?: string[];
+      }) => {
+        const result = await service.graph(name, { target, maxHops, includeSheets });
+        const graph = result.graph;
+        let summary: string;
+        if (graph.status === 'built') {
+          const skipped = graph.skipped.length;
+          summary =
+            `${result.name}: ${graph.nodes} formula node(s), ${graph.edges} edge(s) across ` +
+            `${graph.includedSheets.length} sheet(s), ${skipped} sheet(s) skipped by role. ` +
+            `Max chain depth ${graph.depth.maxDepth}, ${graph.cycles} cycle(s), ` +
+            `${graph.candidateInputs.length} candidate input(s) and ` +
+            `${graph.candidateOutputs.length} candidate output(s). ` +
+            `${graph.unresolved.length} operand(s) counted but not resolved` +
+            `${graph.truncated ? `; ${graph.truncationReason}` : ''} — built in ${graph.elapsedMs} ms. ` +
+            `${result.provenance}`;
+          if (graph.target) {
+            summary +=
+              ` Target ${graph.target.node}: ${graph.target.precedents.length} precedent(s), ` +
+              `${graph.target.dependents.length} direct dependent(s)` +
+              (graph.target.transitiveDependents
+                ? `, ${graph.target.transitiveDependents.reached.length} reached within the hop bound` +
+                  (graph.target.transitiveDependents.truncated
+                    ? ` (${graph.target.transitiveDependents.truncationReason})`
+                    : '')
+                : '') +
+              '.';
+          }
+        } else {
+          summary = `${result.name} is not readable as .xlsx: ${graph.reason}`;
+        }
+        return ok({ ...result }, summary);
+      },
+    ),
+  );
+
+  server.registerTool(
+    'describe_sheet_data',
+    {
+      title: 'Describe sheet data (byte-first)',
+      description:
+        'Describe one sheet\'s columns from the saved bytes, engine-free: header source, observed type, row and null counts, and — where the data is measurably consumed elsewhere in the workbook — extents and distinct counts. Depth is proportional to measured use, and every column states the evidence and threshold that set its depth, so a shallow column reads as "not worth the scan yet", never as "nothing there". Two guarantees are unconditional: no raw cell values are returned as samples (use read_range for values), and a column whose header or value shape indicates a taxpayer number or a birthdate reports only its name, type, row count, and null count, marked redacted with the reason — the depth override does not lift redaction. Birthdate detection is header-only, so a date-of-birth column under an unrelated header will not be caught by shape. Failures are typed: unreadable or no-such-sheet, the latter naming the sheets that do exist.',
+      inputSchema: {
+        name: z.string().describe('Workbook name relative to the authorized root'),
+        sheet: z.string().describe('Sheet name, e.g. "Sheet1"'),
+        override: z
+          .boolean()
+          .optional()
+          .describe('Full depth regardless of the materiality gate. Never lifts redaction.'),
+      },
+    },
+    guarded(
+      async ({ name, sheet, override }: { name: string; sheet: string; override?: boolean }) => {
+        const result = await service.describeSheet(name, sheet, { override });
+        const description = result.description;
+        let summary: string;
+        if (description.status === 'described') {
+          const redacted = description.columns.filter((column) => column.redacted).length;
+          summary =
+            `${result.name} ${description.sheet} (role: ${description.role}): ` +
+            `${description.columns.length} column(s) from ${description.headerSource}, ` +
+            `box ${description.observedBox?.ref ?? 'not observed'}` +
+            (description.statisticsSkipped ? ', statistics not run' : '') +
+            `. ${redacted} column(s) redacted as high-risk personal data` +
+            `${description.truncated ? `; ${description.truncationReason}` : ''} — described in ` +
+            `${description.elapsedMs} ms. ${result.provenance}`;
+        } else if (description.status === 'no-such-sheet') {
+          summary = `${result.name} has no sheet named ${sheet}. Sheets present: ${description.sheets.join(', ')}.`;
+        } else {
+          summary = `${result.name} is not readable as .xlsx: ${description.reason}`;
+        }
+        return ok({ ...result }, summary);
+      },
+    ),
+  );
+
+  server.registerTool(
+    'brief_workbook',
+    {
+      title: 'Brief workbook (byte-first)',
+      description:
+        'The one call to make while the canvas is still hydrating: a composed briefing of a workbook read straight from its saved bytes, engine-free. Identity and metadata, named ranges and tables, cross-sheet consumption, then one section per sheet keyed to that sheet\'s own measured role — columns and types for data-shaped sheets, dependency depth and candidate inputs and outputs for formula-shaped ones, both for a sheet that is both. The workbook-level genre hint is reported as a hint and gates nothing. Every sheet carries a notRun block naming each stage it did not get and why, so a cheap briefing never reads as an empty one; a derivation trace appears only where the measured depth earns it and states the depth when it declines. Anomalies collect cycles, unresolved references, claimed-versus-observed extent divergences, redactions, and any cap that bit. No raw cell values and no high-risk personal data are emitted — use read_range for values. The structured object is the authority; the prose summary is derived from it.',
+      inputSchema: { name: z.string().describe('Workbook name relative to the authorized root') },
+    },
+    guarded(async ({ name }: { name: string }) => {
+      const result = await service.brief(name);
+      const briefing = result.briefing;
+      const summary =
+        briefing.status === 'briefed'
+          ? `${result.name}: ${briefing.sheets.length} sheet(s) briefed in ` +
+            `${briefing.latency.totalMs} ms, ${briefing.anomalies.length} anomaly/anomalies. ` +
+            `${result.provenance}\n\n${briefing.summary}`
+          : `${result.name} is not readable as .xlsx: ${briefing.reason}`;
       return ok({ ...result }, summary);
     }),
   );

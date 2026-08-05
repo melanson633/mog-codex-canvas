@@ -36,6 +36,13 @@ If `workbooks/` is empty, `npm run headless` writes a sample.
 changes. Touching the MCP or plugin lane adds `check:mcp` / `check:plugin`;
 touching the canvas or its mount adds `check:app`.
 
+`plugins/mog-canvas/ui/dist` is a gitignored build artifact that the MCP server
+serves and `check:app` drives, and it is built from `src/` as well as the
+component's own sources. `check:app` rebuilds it when this checkout's sources
+have moved since the last build; `check:mcp` says so but does not rebuild, since
+nothing it asserts drives the canvas. `npm run check:ui-bundle` answers the
+question on its own, and `npm run build:mcp-app` records what it built from.
+
 ## Invariants
 
 These are enforced by checks, not just convention. Breaking one usually means
@@ -61,6 +68,14 @@ stop and reconsider the change.
   escapes, and NTFS alternate data streams are all rejected there for reasons
   documented in
   [`docs/solutions/security-issues/windows-path-containment-traps.md`](docs/solutions/security-issues/windows-path-containment-traps.md).
+- **High-risk personal data is never emitted with statistics.** The R38 guard
+  in `server/redaction.ts` runs ahead of every statistic, on every return path,
+  and no option lifts it — a column naming an SSN, taxpayer ID, or birthdate is
+  reported present and redacted, never omitted. When changing anything that
+  supplies it a header, the question is whether the name it reads and the column
+  it protects are still the same column; every leak so far has been a
+  misalignment, not a logic error. See
+  [`docs/solutions/security-issues/redaction-guards-fail-by-misalignment-not-by-logic.md`](docs/solutions/security-issues/redaction-guards-fail-by-misalignment-not-by-logic.md).
 - **`workbooks/` is the only readable/writable directory** (override with
   `MOG_WORKBOOK_DIR`). It is a live sandbox: real data lands there and is
   gitignored. `workbooks/sample.xlsx` is the one tracked fixture.
