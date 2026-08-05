@@ -503,6 +503,17 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
     );
   }
 
+  /**
+   * Shape plus document metadata, from the saved bytes.
+   *
+   * The metadata block carries `creator` and `lastModifiedBy` read verbatim
+   * from the workbook's own docProps (R41) — real people's names, which
+   * previously never left this tool. Returning them is intended; forwarding
+   * them is not. Callers must treat this result as personal data and keep it
+   * out of commit messages, issues, and anything else public. The same note is
+   * on the `profile_workbook` tool description, which is where the model that
+   * calls it will read it.
+   */
   async function profile(name: string): Promise<WorkbookProfileResult> {
     const { bytes, revision } = await read(name);
     return {

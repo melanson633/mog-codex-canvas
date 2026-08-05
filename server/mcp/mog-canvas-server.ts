@@ -135,7 +135,7 @@ export function createMogCanvasServer(options: MogCanvasServerOptions): McpServe
     {
       title: 'Profile workbook (byte-first)',
       description:
-        'Read a workbook\'s shape straight from its saved OOXML bytes in milliseconds, without opening the Mog engine: per-sheet rows/cells/formulas, cross-sheet reference ratio, table and comment parts, and a labeled genre guess. The provenance string travels with the numbers: this is the truth of the last save on disk, never unsaved canvas edits. Unreadable bytes come back as a typed "unreadable" profile with the reason — unknown is never reported as empty. Use this to orient and plan while the canvas renderer is still hydrating.',
+        'Read a workbook\'s shape straight from its saved OOXML bytes in milliseconds, without opening the Mog engine: per-sheet rows/cells/formulas, cross-sheet reference ratio, table and comment parts, and a labeled genre guess. The provenance string travels with the numbers: this is the truth of the last save on disk, never unsaved canvas edits. Unreadable bytes come back as a typed "unreadable" profile with the reason — unknown is never reported as empty. Use this to orient and plan while the canvas renderer is still hydrating. PERSONAL DATA: the metadata block returns `creator` and `lastModifiedBy` verbatim from the file\'s own document properties (R41). These are real people\'s names. Treat this tool\'s output as personal data — do not paste it into commit messages, issues, pull requests, logs, or any other public or shared document.',
       inputSchema: { name: z.string().describe('Workbook name relative to the authorized root') },
     },
     guarded(async ({ name }: { name: string }) => {
