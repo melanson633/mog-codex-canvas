@@ -233,7 +233,7 @@ try {
     const saved = unwrap(
       await client.callTool({
         name: 'save_workbook',
-        arguments: { sessionId: session.sessionId, xlsxBase64: editedB64 },
+        arguments: { sessionId: session.sessionId, xlsxBase64: editedB64, touchedRanges: ['A1'] },
       }),
     );
     expect(saved.revision !== session.revision, 'save did not change the revision');
@@ -296,7 +296,7 @@ try {
     unwrap(
       await client.callTool({
         name: 'save_workbook',
-        arguments: { sessionId: other.sessionId, xlsxBase64: newerB64 },
+        arguments: { sessionId: other.sessionId, xlsxBase64: newerB64, touchedRanges: ['A1'] },
       }),
     );
     // The original session's revision is now stale.
@@ -304,7 +304,7 @@ try {
     const body = await expectToolError(
       client.callTool({
         name: 'save_workbook',
-        arguments: { sessionId: session.sessionId, xlsxBase64: staleBytes },
+        arguments: { sessionId: session.sessionId, xlsxBase64: staleBytes, touchedRanges: ['A1'] },
       }),
       'revision-conflict',
     );

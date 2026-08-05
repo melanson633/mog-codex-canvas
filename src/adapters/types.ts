@@ -47,6 +47,22 @@ export interface OpenRequest {
   readonly assetBase?: string;
 }
 
+/**
+ * Ephemeral canvas presence, stamped by the adapter with its mount epoch and a
+ * monotonic sequence so the host can reject stale or out-of-order reports.
+ */
+export interface CanvasContextSnapshot {
+  readonly epoch: number;
+  readonly sequence: number;
+  readonly activeSheet: string | null;
+  /** A1 range list head of the current selection, e.g. "B2:D4". */
+  readonly selection: string | null;
+  /** The cell the human is on (on activeSheet), e.g. "B2". */
+  readonly occupiedCell: string | null;
+  readonly focused: boolean;
+  readonly dirty: boolean;
+}
+
 /** What the canvas is allowed to ask the host (this app) to do. */
 export interface HostServices {
   /**
@@ -57,6 +73,8 @@ export interface HostServices {
   onDirtyChange(dirty: boolean): void;
   onStatus(status: string): void;
   onError(error: unknown): void;
+  /** Presence updates for the context bus. Optional: hosts may not carry them. */
+  onContext?(snapshot: CanvasContextSnapshot): void;
 }
 
 export interface CanvasSession {
@@ -67,6 +85,11 @@ export interface CanvasSession {
   screenshot(range: string): Promise<Uint8Array>;
   /** Name of the sheet currently in view, when the engine exposes it. */
   activeSheetName(): string | undefined;
+  /**
+   * Navigation only: scroll to and select a range (optionally switching sheet
+   * first). Never edits cells. Optional: not every canvas can navigate.
+   */
+  reveal?(range: string, sheet?: string | null): Promise<void>;
   dispose(): Promise<void>;
 }
 

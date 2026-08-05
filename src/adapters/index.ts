@@ -14,7 +14,14 @@ import { createMogEmbedAdapter, type EmbedModule } from './mog-embed-adapter';
 import { createUnavailableAdapter } from './unavailable-adapter';
 import type { CanvasAdapter } from './types';
 
-export type { CanvasAdapter, CanvasSession, AdapterProbe, HostServices, ColorScheme } from './types';
+export type {
+  CanvasAdapter,
+  CanvasSession,
+  CanvasContextSnapshot,
+  AdapterProbe,
+  HostServices,
+  ColorScheme,
+} from './types';
 
 /**
  * The two imports resolution depends on. Injectable so the fallback path can be

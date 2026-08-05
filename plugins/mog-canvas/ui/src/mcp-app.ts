@@ -21,6 +21,7 @@ import { App } from '@modelcontextprotocol/ext-apps';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
   resolveCanvasAdapter,
+  type CanvasContextSnapshot,
   type CanvasSession,
   type ColorScheme,
 } from '../../../../src/adapters';
@@ -87,6 +88,8 @@ root.innerHTML = `
     <div id="canvas" class="canvas"></div>
     <footer class="bar">
       <span id="status">connecting to host…</span>
+      <span id="fidelity" class="warn"></span>
+      <span id="coord" class="warn"></span>
       <span id="error" class="error"></span>
     </footer>
   </div>`;
@@ -98,11 +101,37 @@ const el = {
   shot: document.getElementById('shot') as HTMLButtonElement,
   canvas: document.getElementById('canvas') as HTMLDivElement,
   status: document.getElementById('status') as HTMLSpanElement,
+  fidelity: document.getElementById('fidelity') as HTMLSpanElement,
+  coord: document.getElementById('coord') as HTMLSpanElement,
   error: document.getElementById('error') as HTMLSpanElement,
 };
 
+interface FidelityLike {
+  status: 'passed' | 'failed' | 'unverified';
+  reason: string;
+  checkedCells: number;
+}
+
+/** Persistent, never concealed: anything short of `passed` stays on screen. */
+function setFidelity(fidelity: FidelityLike | null): void {
+  if (!fidelity) {
+    el.fidelity.textContent = '';
+    return;
+  }
+  el.fidelity.textContent =
+    fidelity.status === 'passed'
+      ? `fidelity: passed (${fidelity.checkedCells} cells)`
+      : `Value fidelity ${fidelity.status}: ${fidelity.reason}`;
+  el.fidelity.classList.toggle('ok', fidelity.status === 'passed');
+}
+
 function setStatus(text: string): void {
   el.status.textContent = text;
+}
+
+/** Presence-coordination health: while set, agents cannot see where the human is. */
+function setCoordinationWarning(text: string | null): void {
+  el.coord.textContent = text ?? '';
 }
 
 function setError(error: unknown): void {
@@ -120,14 +149,16 @@ function payload<T>(result: CallToolResult): T {
       result.content?.find(
         (item): item is { type: 'text'; text: string } => item.type === 'text',
       )?.text ?? 'Tool call failed';
-    let body: { code?: string; message?: string };
+    let body: { code?: string; message?: string } & Record<string, unknown>;
     try {
-      body = JSON.parse(text) as { code?: string; message?: string };
+      body = JSON.parse(text) as { code?: string; message?: string } & Record<string, unknown>;
     } catch {
       body = { message: text };
     }
     const error = new Error(body.message ?? text);
-    (error as Error & { code?: string }).code = body.code;
+    // The full structured body travels with the error: a fidelity refusal
+    // carries the report that must replace any stale "passed" on screen.
+    Object.assign(error, { code: body.code, details: body });
     throw error;
   }
   return (result.structuredContent ?? {}) as T;
@@ -155,6 +186,20 @@ const app = new App({ name: 'mog-canvas', version: '0.1.0' });
 
 let current: { info: OpenInfo; session: CanvasSession } | null = null;
 let opening = false;
+
+/** Coalesced presence reporting + command polling timers for the open canvas. */
+const CONTEXT_THROTTLE_MS = 300;
+const COMMAND_POLL_MS = 1500;
+let contextTimer: ReturnType<typeof setTimeout> | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let pending: CanvasContextSnapshot | null = null;
+
+function stopContextTimers(): void {
+  if (contextTimer) clearTimeout(contextTimer);
+  contextTimer = null;
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = null;
+}
 
 function hostColorScheme(): ColorScheme {
   const theme = app.getHostContext()?.theme;
@@ -185,9 +230,12 @@ async function openFromToolResult(result: CallToolResult): Promise<void> {
     el.name.textContent = info.name;
 
     if (current) {
+      stopContextTimers();
       await current.session.dispose().catch(() => undefined);
       current = null;
       el.canvas.replaceChildren();
+      setFidelity(null);
+      setCoordinationWarning(null);
     }
 
     const fetched = await callTool<{ xlsxBase64: string; revision: string }>(
@@ -208,11 +256,24 @@ async function openFromToolResult(result: CallToolResult): Promise<void> {
       },
       {
         async persist(bytes) {
-          const saved = await callTool<{ revision: string }>('save_workbook', {
-            sessionId: info.sessionId,
-            xlsxBase64: toBase64(bytes),
-          });
-          return { versionId: saved.revision };
+          // The component-only human lane: attribution happens server-side.
+          try {
+            const saved = await callTool<{ revision: string; fidelity?: FidelityLike }>(
+              'save_workbook_canvas',
+              {
+                sessionId: info.sessionId,
+                xlsxBase64: toBase64(bytes),
+              },
+            );
+            setFidelity(saved.fidelity ?? null);
+            return { versionId: saved.revision };
+          } catch (error) {
+            // A refused save must replace any stale "passed" on screen: show
+            // the refusal's own fidelity report, or nothing, never the old one.
+            const details = (error as { details?: { fidelity?: FidelityLike } }).details;
+            setFidelity(details?.fidelity ?? null);
+            throw error;
+          }
         },
         onDirtyChange(dirty) {
           el.dirty.hidden = !dirty;
@@ -223,12 +284,57 @@ async function openFromToolResult(result: CallToolResult): Promise<void> {
         onError(error) {
           setError(error);
         },
+        onContext(snapshot) {
+          // Coalesce: keep only the newest snapshot per throttle window. The
+          // bus is latest-state-only, so dropped intermediates lose nothing.
+          pending = snapshot;
+          contextTimer ??= setTimeout(() => {
+            contextTimer = null;
+            const next = pending;
+            pending = null;
+            if (!next || current?.info.sessionId !== info.sessionId) return;
+            void callTool<{ accepted: boolean; reason?: string }>('report_canvas_context', {
+              sessionId: info.sessionId,
+              ...next,
+            }).then(
+              (result) => {
+                // A rejected report means agents are coordinating against
+                // presence this canvas no longer owns — say so, don't hide it.
+                setCoordinationWarning(
+                  result.accepted ? null : `presence not accepted: ${result.reason ?? 'rejected'}`,
+                );
+              },
+              (error) => {
+                setCoordinationWarning(
+                  `presence reporting failed: ${error instanceof Error ? error.message : String(error)}`,
+                );
+              },
+            );
+          }, CONTEXT_THROTTLE_MS);
+        },
       },
     );
 
     current = { info, session };
     el.save.disabled = false;
     el.shot.disabled = false;
+
+    // Navigation-only command channel: agents queue reveals, the canvas polls.
+    pollTimer = setInterval(() => {
+      if (current?.info.sessionId !== info.sessionId) return;
+      void callTool<{ commands: { range: string; sheet: string | null }[] }>(
+        'poll_canvas_commands',
+        { sessionId: info.sessionId },
+      )
+        .then(async ({ commands }) => {
+          const live = current;
+          if (!live?.session.reveal || commands.length === 0) return;
+          const last = commands[commands.length - 1];
+          await live.session.reveal(last.range, last.sheet);
+        })
+        .catch(() => undefined);
+    }, COMMAND_POLL_MS);
+
     setStatus(`ready — ${info.name}`);
   } catch (error) {
     setError(error);

@@ -67,6 +67,11 @@ export function createMogCanvasServer(options: MogCanvasServerOptions): McpServe
   const { service, assetOrigin } = options;
   const server = new McpServer({ name: 'mog-canvas', version: options.version ?? '0.1.0' });
 
+  // The last context epoch each canvas session reported. Session teardown may
+  // clear only the context its own canvas owns — a blanket clear would erase
+  // the presence of a second session sharing the same workbook.
+  const sessionEpochs = new Map<string, number>();
+
   // ---- UI resource -------------------------------------------------------
   // The CSP declaration is the load-bearing part: the component may connect
   // to (wasm fetch, module loading) and load static assets from the loopback
@@ -174,20 +179,51 @@ export function createMogCanvasServer(options: MogCanvasServerOptions): McpServe
     {
       title: 'Save workbook',
       description:
-        'Save edited workbook bytes (base64 xlsx) through an open session. Refused with code "revision-conflict" if the file changed on disk since the session opened; the attempted bytes are then preserved as a .conflict-*.xlsx sibling and nothing is overwritten.',
+        'Save edited workbook bytes (base64 xlsx) through an open session. This is the agent lane: the save is always attributed as an agent transaction, must declare the touched ranges, and passes the occupied-cell interlock against the live canvas. Refused with code "revision-conflict" if the file changed on disk since the session opened, and with code "fidelity-mismatch" if the engine\'s values deterministically contradict the file\'s own cached formula values; in both cases the attempted bytes are preserved as a recoverable sibling and nothing is overwritten. Every successful save writes an immutable receipt and reports its value-fidelity status (passed / failed / unverified — unverified means the check had no evidence, not that the file is verified).',
       inputSchema: {
         sessionId: z.string(),
         xlsxBase64: z.string().describe('The full workbook as base64-encoded .xlsx bytes'),
+        actorId: z.string().optional().describe('Stable identifier for the agent (recorded in the receipt)'),
+        intent: z.string().optional().describe('What this transaction set out to do (recorded in the receipt)'),
+        touchedRanges: z
+          .array(z.string())
+          .min(1)
+          .describe('A1 ranges the edit touched, e.g. ["Sheet1!A1:C3"]. Required: the occupied-cell interlock proves them disjoint from the live canvas.'),
       },
     },
-    guarded(async ({ sessionId, xlsxBase64 }: { sessionId: string; xlsxBase64: string }) => {
-      const bytes = Buffer.from(xlsxBase64, 'base64');
-      const saved = await service.saveSession(sessionId, bytes);
-      return ok(
-        { ...saved },
-        `Saved ${saved.name} (${saved.bytes} bytes, revision ${saved.revision.slice(0, 12)}…). Previous version kept as ${saved.backup ?? 'n/a'}.`,
-      );
-    }),
+    guarded(
+      async ({
+        sessionId,
+        xlsxBase64,
+        actorId,
+        intent,
+        touchedRanges,
+      }: {
+        sessionId: string;
+        xlsxBase64: string;
+        actorId?: string;
+        intent?: string;
+        touchedRanges: string[];
+      }) => {
+        const bytes = Buffer.from(xlsxBase64, 'base64');
+        // Actor identity is decided here, not by the caller: everything that
+        // reaches this tool is the model, and the model is an agent. Human
+        // canvas saves travel through save_workbook_canvas below.
+        const saved = await service.saveSession(sessionId, bytes, {
+          lane: 'mcp',
+          actor: { kind: 'agent', id: actorId ?? 'model' },
+          intent,
+          touchedRanges,
+        });
+        return ok(
+          { ...saved },
+          `Saved ${saved.name} (${saved.bytes} bytes, revision ${saved.revision.slice(0, 12)}…). ` +
+            `Previous version kept as ${saved.backup ?? 'n/a'}. ` +
+            `Value fidelity: ${saved.fidelity.status} (${saved.fidelity.reason}). ` +
+            `Receipt ${saved.transactionId ?? 'unavailable'}.`,
+        );
+      },
+    ),
   );
 
   server.registerTool(
@@ -230,9 +266,83 @@ export function createMogCanvasServer(options: MogCanvasServerOptions): McpServe
       inputSchema: { sessionId: z.string() },
     },
     guarded(async ({ sessionId }: { sessionId: string }) => {
+      const session = service.getSession(sessionId);
       service.closeSession(sessionId);
+      // Clear only the context this session's canvas owns (its last reported
+      // epoch). A session whose canvas never reported owns nothing to clear —
+      // and must not erase another session's live presence on the same workbook.
+      const epoch = sessionEpochs.get(sessionId);
+      sessionEpochs.delete(sessionId);
+      if (epoch !== undefined) service.context.clear(session.name, epoch);
       return ok({ closed: sessionId });
     }),
+  );
+
+  // ---- Flight recorder (read-only evidence) ------------------------------
+
+  server.registerTool(
+    'list_recovery_artifacts',
+    {
+      title: 'List recovery artifacts',
+      description:
+        'List the typed recovery artifacts in the workbook root: .bak backups, refused .conflict-*.xlsx and .fidelity-refused-*.xlsx siblings, and save receipts. Evidence is retained by default; nothing here deletes anything.',
+      inputSchema: {},
+    },
+    guarded(async () => ok({ artifacts: await service.listRecoveryArtifacts() })),
+  );
+
+  server.registerTool(
+    'list_save_receipts',
+    {
+      title: 'List save receipts',
+      description:
+        'List flight-recorder receipt summaries: one immutable receipt per successful save, newest first, with lane, actor, and fidelity status.',
+      inputSchema: {},
+    },
+    guarded(async () => ok({ receipts: await service.listReceipts() })),
+  );
+
+  server.registerTool(
+    'get_save_receipt',
+    {
+      title: 'Get save receipt',
+      description:
+        'Retrieve one full save receipt by transaction id: workbook identity, before/after revisions, actor, lane, fidelity result, coordination outcome, and the dependency trace (or its typed unavailability) for agent transactions.',
+      inputSchema: { transactionId: z.string() },
+    },
+    guarded(async ({ transactionId }: { transactionId: string }) =>
+      ok({ ...(await service.getReceipt(transactionId)) }),
+    ),
+  );
+
+  // ---- Canvas context bus (ephemeral) ------------------------------------
+
+  server.registerTool(
+    'get_canvas_context',
+    {
+      title: 'Get canvas context',
+      description:
+        'Read the live canvas context for a workbook: active sheet, selection, occupied cell, focus and dirty state. Null when no canvas is reporting. Ephemeral presence only — durable evidence lives in save receipts.',
+      inputSchema: { name: z.string() },
+    },
+    guarded(async ({ name }: { name: string }) => ok({ context: service.context.get(name) })),
+  );
+
+  server.registerTool(
+    'reveal_range',
+    {
+      title: 'Reveal range on canvas',
+      description:
+        'Ask the live canvas to navigate to (scroll to and select) a range. Navigation only — this cannot edit cells. The command is queued until the canvas polls; it is dropped if no canvas is open.',
+      inputSchema: {
+        name: z.string(),
+        range: z.string().describe('A1 range to reveal, e.g. "B2:D4"'),
+        sheet: z.string().optional().describe('Sheet to activate first'),
+      },
+    },
+    guarded(async ({ name, range, sheet }: { name: string; range: string; sheet?: string }) =>
+      ok({ command: service.context.requestReveal(name, range, sheet ?? null) }),
+    ),
   );
 
   // ---- Component-only tools (visibility: app) ----------------------------
@@ -257,6 +367,102 @@ export function createMogCanvasServer(options: MogCanvasServerOptions): McpServe
         sessionRevision: session.revision,
         xlsxBase64: Buffer.from(bytes).toString('base64'),
       });
+    }),
+  );
+
+  registerAppTool(
+    server,
+    'save_workbook_canvas',
+    {
+      title: 'Save workbook (canvas)',
+      description:
+        'Internal: the canvas component persists the human\'s edits through its open session. Human-attributed in trusted process code — the component cannot claim any other identity, and the model never sees this tool.',
+      inputSchema: {
+        sessionId: z.string(),
+        xlsxBase64: z.string().describe('The full workbook as base64-encoded .xlsx bytes'),
+      },
+      _meta: { ui: { visibility: ['app'] } },
+    },
+    guarded(async ({ sessionId, xlsxBase64 }: { sessionId: string; xlsxBase64: string }) => {
+      const bytes = Buffer.from(xlsxBase64, 'base64');
+      const saved = await service.saveSession(sessionId, bytes, {
+        lane: 'canvas',
+        actor: { kind: 'human', id: 'mcp-canvas' },
+      });
+      return ok({ ...saved });
+    }),
+  );
+
+  registerAppTool(
+    server,
+    'report_canvas_context',
+    {
+      title: 'Report canvas context (canvas)',
+      description:
+        'Internal: the canvas component reports its presence (epoch/sequence gated; stale or out-of-order reports are rejected).',
+      inputSchema: {
+        sessionId: z.string(),
+        epoch: z.number(),
+        sequence: z.number(),
+        activeSheet: z.string().nullable().optional(),
+        selection: z.string().nullable().optional(),
+        occupiedCell: z.string().nullable().optional(),
+        focused: z.boolean().optional(),
+        dirty: z.boolean().optional(),
+      },
+      _meta: { ui: { visibility: ['app'] } },
+    },
+    guarded(
+      async ({
+        sessionId,
+        epoch,
+        sequence,
+        activeSheet,
+        selection,
+        occupiedCell,
+        focused,
+        dirty,
+      }: {
+        sessionId: string;
+        epoch: number;
+        sequence: number;
+        activeSheet?: string | null;
+        selection?: string | null;
+        occupiedCell?: string | null;
+        focused?: boolean;
+        dirty?: boolean;
+      }) => {
+        const session = service.getSession(sessionId);
+        const result = service.context.report(session.name, {
+          epoch,
+          sequence,
+          activeSheet: activeSheet ?? null,
+          selection: selection ?? null,
+          occupiedCell: occupiedCell ?? null,
+          focused: focused === true,
+          dirty: dirty === true,
+        });
+        // Accepted reports establish which epoch this session's canvas owns,
+        // so close_workbook_session can scope its teardown to exactly that.
+        if (result.accepted) sessionEpochs.set(sessionId, epoch);
+        return ok({ ...result });
+      },
+    ),
+  );
+
+  registerAppTool(
+    server,
+    'poll_canvas_commands',
+    {
+      title: 'Poll canvas commands (canvas)',
+      description:
+        'Internal: the canvas component drains pending navigation-only commands (reveal a range).',
+      inputSchema: { sessionId: z.string() },
+      _meta: { ui: { visibility: ['app'] } },
+    },
+    guarded(async ({ sessionId }: { sessionId: string }) => {
+      const session = service.getSession(sessionId);
+      return ok({ commands: service.context.drainCommands(session.name) });
     }),
   );
 

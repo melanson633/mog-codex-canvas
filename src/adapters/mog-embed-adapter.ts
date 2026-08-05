@@ -12,6 +12,7 @@
 import type {
   MogSpreadsheetAppProps,
   SpreadsheetAppAttachmentHandle,
+  SpreadsheetAppEvent,
   SpreadsheetCommandRequest,
   SpreadsheetCommandResult,
   SpreadsheetRuntime,
@@ -68,6 +69,7 @@ export function createMogEmbedAdapter(embed: EmbedModule): CanvasAdapter {
     probe: MOG_EMBED_PROBE,
 
     async open(container, request, host): Promise<CanvasSession> {
+      const tracker = createContextTracker(host);
       const runtime = await embed.createSpreadsheetRuntime({
         assets: assetsFor(request.assetBase),
         host: {
@@ -80,6 +82,7 @@ export function createMogEmbedAdapter(embed: EmbedModule): CanvasAdapter {
         onCommandRequest: (commandRequest) => routeCommand(commandRequest, host),
         onEvent: (event) => {
           if (event.type === 'error') host.onError(event.payload);
+          tracker.handle(event);
         },
       });
 
@@ -92,8 +95,107 @@ export function createMogEmbedAdapter(embed: EmbedModule): CanvasAdapter {
       const attachment = embed.mountSpreadsheetApp(container, appProps(runtime, workbook, request, host));
       await attachment.ready;
       host.onStatus('ready');
+      // The events above only fire on change; seed the initial presence from
+      // the mounted view so the bus knows about the canvas before any click.
+      tracker.seed(attachment);
 
-      return session(runtime, workbook, attachment, stopDirty);
+      return session(runtime, workbook, attachment, stopDirty, tracker);
+    },
+  };
+}
+
+/**
+ * Presence tracking for the context bus: the adapter stamps its own mount
+ * epoch and monotonic sequence, so the host (and the bus behind it) can reject
+ * reports from a torn-down canvas. Sheet ids are translated to names as the
+ * embed reports them; the occupied cell is the selection's active cell.
+ */
+interface ContextTracker {
+  handle(event: SpreadsheetAppEvent): void;
+  seed(attachment: SpreadsheetAppAttachmentHandle): void;
+  /**
+   * Runs a programmatic navigation (an agent-issued reveal) with position
+   * events suppressed: the occupied cell on the bus is the *human's* signal,
+   * and a reveal must never overwrite it with an agent-chosen position.
+   * Events the embed dispatches after the awaited action resolves are not
+   * covered — a known, narrow limitation.
+   */
+  suppress<T>(action: () => Promise<T>): Promise<T>;
+}
+
+function createContextTracker(host: HostServices): ContextTracker {
+  const onContext = host.onContext?.bind(host);
+  if (!onContext) {
+    return { handle: () => undefined, seed: () => undefined, suppress: (action) => action() };
+  }
+
+  const epoch = Date.now();
+  let sequence = 0;
+  let programmatic = 0;
+  const sheetNames = new Map<string, string>();
+  const state = {
+    activeSheet: null as string | null,
+    selection: null as string | null,
+    occupiedCell: null as string | null,
+    focused: false,
+    dirty: false,
+  };
+  const emit = () => onContext({ epoch, sequence: ++sequence, ...state });
+
+  return {
+    handle(event) {
+      switch (event.type) {
+        case 'selection-change':
+          // Position events raised by an agent reveal are not human presence.
+          if (programmatic > 0) return;
+          state.selection = event.payload.selectedRanges[0] ?? null;
+          state.occupiedCell = event.payload.activeCell?.address ?? null;
+          if (event.payload.activeCell) {
+            const name = sheetNames.get(event.payload.activeCell.sheetId);
+            if (name) state.activeSheet = name;
+          }
+          break;
+        case 'active-sheet-change':
+          // Keep the id->name mapping current even during a reveal; only the
+          // human-position state stays untouched.
+          if (event.payload.sheetName) sheetNames.set(event.payload.sheetId, event.payload.sheetName);
+          if (programmatic > 0) return;
+          state.activeSheet = event.payload.sheetName ?? state.activeSheet;
+          break;
+        case 'focus-change':
+          state.focused = event.payload.focused;
+          break;
+        case 'dirty-change':
+          state.dirty = event.payload.status === 'dirty';
+          break;
+        default:
+          return;
+      }
+      emit();
+    },
+
+    seed(attachment) {
+      try {
+        const view = attachment.view();
+        const active = view.getActiveSheet();
+        if (active.sheetName) sheetNames.set(active.sheetId, active.sheetName);
+        state.activeSheet = active.sheetName ?? null;
+        const selection = view.getSelection();
+        state.selection = selection.selectedRanges[0] ?? null;
+        state.occupiedCell = selection.activeCell?.address ?? null;
+      } catch {
+        // A view that cannot report yet is fine — events will catch up.
+      }
+      emit();
+    },
+
+    async suppress(action) {
+      programmatic += 1;
+      try {
+        return await action();
+      } finally {
+        programmatic -= 1;
+      }
     },
   };
 }
@@ -217,6 +319,7 @@ function session(
   workbook: SpreadsheetWorkbookSession,
   attachment: SpreadsheetAppAttachmentHandle,
   stopDirty: () => void,
+  tracker: ContextTracker,
 ): CanvasSession {
   return {
     async save() {
@@ -238,6 +341,19 @@ function session(
 
     activeSheetName() {
       return attachment.view().getActiveSheet().sheetName;
+    },
+
+    // Navigation only: switch sheet, select, scroll. No cell is edited — the
+    // view handle's edit entry points are never called from here.
+    async reveal(range, sheet) {
+      // Suppressed: the position changes below are agent navigation, and must
+      // not replace the human's occupied cell on the context bus.
+      await tracker.suppress(async () => {
+        const view = attachment.view();
+        if (sheet) await view.setActiveSheet(sheet);
+        await view.select(sheet ? { sheet, range } : { range });
+        await view.scrollTo(sheet ? { sheet, range } : { range });
+      });
     },
 
     async dispose() {

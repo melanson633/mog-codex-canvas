@@ -76,3 +76,15 @@ footer.bar {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Value-fidelity notice: amber while unverified/failed, muted when passed. */
+.warn {
+  color: #b45309;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.warn.ok {
+  color: color-mix(in srgb, CanvasText 55%, transparent);
+}
