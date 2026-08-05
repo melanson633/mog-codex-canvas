@@ -61,6 +61,65 @@ Genre is also the axis along which a second specimen is chosen when testing whet
 proposed feature generalizes: a design built while looking at one genre is tested
 against the other, and what survives is the design.
 
+Genre is a hint about a *file*, and real workbooks are not uniform: the same file
+routinely holds a driver sheet, a calculation sheet, and a 40,000-row export. It is
+therefore reported but never branched on — what a reader is shown is chosen by Sheet
+Role, one sheet at a time. Genre survives as the coarse orientation line and as the
+specimen-selection axis above, and nothing downstream gates on its value.
+
+### Sheet Role
+
+The structural kind of a single sheet — *model*, *dataset*, *mixed*, or
+*indeterminate* — measured from that sheet's own formula density, row count, and
+whether it has a header row.
+
+Role is what actually decides how a sheet is examined and presented, because the unit
+that varies is the sheet, not the file: a dependency graph is worth building over a
+model sheet and is 40,000 near-identical edges over a dataset sheet. *Indeterminate*
+is a real answer, not a failure — a sheet too small to judge is reported as such
+rather than forced into a kind. Every role travels with the basis that produced it,
+naming each threshold it was measured against and stating that those thresholds are
+uncalibrated.
+
+### Progressive Retrieval
+
+Answering at a depth proportional to the evidence that the depth is wanted, rather
+than extracting everything a file could yield on the chance that some of it is asked
+for.
+
+The stages are ordered so each one's output tells the next whether to run: shape
+before role, role before dependency graph, measured consumption before column
+statistics. A sheet nothing is measured to read stops at its bounding box and
+headers. What this buys is the ability to answer in milliseconds while an engine is
+still hydrating; what it costs is that a stage which did not run must say so, since
+a briefing that stops early and stays silent reads exactly like one that looked and
+found nothing.
+
+### Consumption Index
+
+A count, per sheet, of how many references from elsewhere in the workbook read it —
+the measured answer to "does anything actually use this?".
+
+It is built from one pass over the workbook's formula text, so it is cheap enough to
+run before deciding where to spend real effort, and it is the signal Progressive
+Retrieval uses to choose which sheets earn column statistics. Its counts are floors,
+not totals: a reference the parser could not resolve is counted by cause and reported
+as a blind spot, because an unresolved reference means *not seen*, never *not used*.
+
+### Hydration Briefing
+
+The composed answer to "what is in this workbook?", assembled from the staged
+extraction and available while the canvas is still hydrating.
+
+It is one section per sheet, each keyed to that sheet's own Sheet Role, plus workbook
+identity, defined names and tables, consumption, and anomalies. Everything in it is
+derived from the file's stored parts, so it carries as-saved provenance rather than
+implying it reflects unsaved edits. Two properties are load-bearing: it states which
+stages did not run and why, so an absent finding is never mistaken for an absence of
+findings; and it never emits cell values or high-risk personal data — a column
+identified as personal is reported by name, type, and row count with its redaction
+stated, and values reach a caller only through an explicit range read.
+
 ## Host validation
 
 ### Mog Canvas
