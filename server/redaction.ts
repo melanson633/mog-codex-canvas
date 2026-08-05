@@ -37,6 +37,23 @@ const SSN_SHAPE = /^\s*\d{3}-\d{2}-\d{4}\s*$/;
 export const SHAPE_SAMPLE = 50;
 
 /**
+ * A header reduced to space-separated words before the patterns run.
+ *
+ * The patterns are word-bounded, and `\b` does not fire against an underscore —
+ * so `SSN` matched while `Employee_SSN` did not, and `EMP_DOB` sailed past a
+ * guard written to catch `DOB`. Underscored and camel-cased headers are the
+ * house style of anything exported from a payroll or HR system, which is
+ * precisely the data R38 exists for. Splitting on separators and on case
+ * transitions puts both shapes back in reach of the same eight patterns.
+ *
+ * This widens what matches; it never narrows it. Over-matching costs a column
+ * its extents, under-matching costs a roster.
+ */
+export function normalizeHeader(header: string): string {
+  return header.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[^A-Za-z0-9]+/g, ' ');
+}
+
+/**
  * The matched R38 reason for a column, or null when nothing matched.
  *
  * `texts` is a bounded sample of the column's populated cells. Callers that
@@ -47,8 +64,9 @@ export const SHAPE_SAMPLE = 50;
  */
 export function redactionReasonFor(header: string | null, texts: readonly string[]): string | null {
   if (header) {
+    const normalized = normalizeHeader(header);
     for (const { pattern, label } of HIGH_RISK_HEADERS) {
-      if (pattern.test(header)) {
+      if (pattern.test(normalized)) {
         return `${label} — reported as present and redacted, never omitted (R38)`;
       }
     }

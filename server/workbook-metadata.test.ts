@@ -94,6 +94,62 @@ test('metadata: a table part reports its sheet, ref, and column names in order',
   assert.equal(table.sheet, 'Raw');
   assert.match(table.ref, /^A1:I\d+$/);
   assert.deepEqual(table.columns.slice(0, 4), ['Id', 'Name', 'Amount', 'Notes']);
+  assert.equal(table.declaredColumnCount, table.columns.length);
+});
+
+test('metadata: an unnamed table column holds its position instead of collapsing the list', () => {
+  // Stage 3 pairs label i with column i of the table's ref, and the R38 guard
+  // reads whatever header that pairing hands it. Dropping the nameless entry
+  // slides every later label one column left.
+  const bytes = writeZipStored([
+    part(
+      'xl/workbook.xml',
+      '<workbook><sheets><sheet name="Data" sheetId="1" r:id="rId1"/></sheets></workbook>',
+    ),
+    part('xl/_rels/workbook.xml.rels', '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>'),
+    part('xl/worksheets/sheet1.xml', '<worksheet><sheetData/></worksheet>'),
+    part(
+      'xl/worksheets/_rels/sheet1.xml.rels',
+      '<Relationships><Relationship Id="rT1" Target="../tables/table1.xml"/></Relationships>',
+    ),
+    part(
+      'xl/tables/table1.xml',
+      '<table name="T1" displayName="T1" ref="A1:C9"><tableColumns count="3">' +
+        '<tableColumn id="1" name="Id"/><tableColumn id="2"/><tableColumn id="3" name="Date of Birth"/>' +
+        '</tableColumns></table>',
+    ),
+  ]);
+  const result = extracted(bytes);
+  assert.deepEqual(result.tables[0].columns, ['Id', '', 'Date of Birth']);
+  assert.equal(result.tables[0].declaredColumnCount, 3);
+  assert.ok(
+    result.notes.some((note) => /1 column\(s\) with no name/.test(note)),
+    'the unnamed column was not reported',
+  );
+});
+
+test('metadata: a declared column count that disagrees with what was read is stated', () => {
+  const bytes = writeZipStored([
+    part(
+      'xl/workbook.xml',
+      '<workbook><sheets><sheet name="Data" sheetId="1" r:id="rId1"/></sheets></workbook>',
+    ),
+    part('xl/_rels/workbook.xml.rels', '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>'),
+    part('xl/worksheets/sheet1.xml', '<worksheet><sheetData/></worksheet>'),
+    part(
+      'xl/tables/table1.xml',
+      '<table name="T1" displayName="T1" ref="A1:D9"><tableColumns count="4">' +
+        '<tableColumn id="1" name="Id"/><tableColumn id="2" name="Name"/>' +
+        '</tableColumns></table>',
+    ),
+  ]);
+  const result = extracted(bytes);
+  assert.equal(result.tables[0].declaredColumnCount, 4);
+  assert.equal(result.tables[0].columns.length, 2);
+  assert.ok(
+    result.notes.some((note) => /declares 4 column\(s\) but 2 could be read/.test(note)),
+    'the count disagreement was not reported',
+  );
 });
 
 test('metadata: no tables and no defined names is empty lists, not nulls', () => {

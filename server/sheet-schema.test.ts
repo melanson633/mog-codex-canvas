@@ -36,7 +36,10 @@ function column(description: SheetDataDescription, header: string): ColumnProfil
 }
 
 /** A single-sheet workbook plus a consumer sheet, built from raw `<c>` rows. */
-function workbook(sheets: readonly { name: string; rows: string }[]) {
+function workbook(
+  sheets: readonly { name: string; rows: string }[],
+  extra: readonly { name: string; data: Buffer }[] = [],
+) {
   return writeZipStored([
     part(
       'xl/workbook.xml',
@@ -53,6 +56,7 @@ function workbook(sheets: readonly { name: string; rows: string }[]) {
     ...sheets.map((sheet, index) =>
       part(`xl/worksheets/sheet${index + 1}.xml`, `<worksheet><sheetData>${sheet.rows}</sheetData></worksheet>`),
     ),
+    ...extra,
   ]);
 }
 
@@ -487,5 +491,251 @@ test('R38: no redacted column leaks a value through the serialized result', () =
     for (const value of ['30000', '30014']) {
       assert.equal(serialized.includes(value), false, `result leaked a raw value: ${value}`);
     }
+  }
+});
+
+// ---- R38: the table-definition header path ----------------------------------
+//
+// The other header path, and the one that states its columns *positionally* —
+// the i-th label names the i-th column of the table's ref. Nothing about a file
+// guarantees that list arrives whole or that the ref resolves, and when either
+// fails the labels name columns they do not own: the guard redacts one column
+// while profiling its neighbour, and issues that neighbour a clean bill of
+// health it never earned. Each case below breaks one of the two assumptions.
+
+const LETTER = (column: number) => String.fromCharCode(64 + column);
+
+/**
+ * `Data` under a declared table, with the label list written verbatim into the
+ * table part and the same labels written into row 1.
+ *
+ * Row 1 always carries the true labels, so a refused table has a correct
+ * detected-row mapping to fall back on. `''` writes a `<tableColumn>` carrying
+ * no `name`. The last column carries date serials no other column can produce,
+ * so a serial surfacing anywhere in the result is that column leaking and not a
+ * neighbour reporting its own extents.
+ */
+function tableSheet(
+  labels: readonly string[],
+  options: {
+    /** `null` omits the ref attribute entirely. */
+    readonly ref?: string | null;
+    /** `null` omits `count`; a number writes it verbatim, agreeing or not. */
+    readonly declaredCount?: number | null;
+    readonly start?: number;
+    readonly rows?: number;
+    readonly consumed?: string;
+  } = {},
+) {
+  const start = options.start ?? 1;
+  const rows = options.rows ?? 15;
+  const ref =
+    options.ref === undefined
+      ? `${LETTER(start)}1:${LETTER(start + labels.length - 1)}${rows + 1}`
+      : options.ref;
+  const declared = options.declaredCount === undefined ? labels.length : options.declaredCount;
+  const trueLabels = labels.map((label, index) => (label === '' ? `Column${index + 1}` : label));
+
+  const header = `<row r="1">${trueLabels
+    .map((label, index) => text(`${LETTER(start + index)}1`, label))
+    .join('')}</row>`;
+  const body: string[] = [];
+  for (let index = 0; index < rows; index += 1) {
+    const r = index + 2;
+    body.push(
+      `<row r="${r}">${labels
+        .map((_, column) =>
+          num(
+            `${LETTER(start + column)}${r}`,
+            column === labels.length - 1 ? 30000 + index : column * 100 + index,
+          ),
+        )
+        .join('')}</row>`,
+    );
+  }
+
+  const tableXml =
+    `<table name="T1" displayName="Payroll"${ref === null ? '' : ` ref="${ref}"`}>` +
+    `<tableColumns${declared === null ? '' : ` count="${declared}"`}>` +
+    labels
+      .map((label, index) =>
+        label === '' ? `<tableColumn id="${index + 1}"/>` : `<tableColumn id="${index + 1}" name="${label}"/>`,
+      )
+      .join('') +
+    '</tableColumns></table>';
+
+  return workbook(
+    [
+      { name: 'Data', rows: header + body.join('') },
+      { name: 'Use', rows: options.consumed ?? '' },
+    ],
+    [
+      part('xl/tables/table1.xml', tableXml),
+      part(
+        'xl/worksheets/_rels/sheet1.xml.rels',
+        '<Relationships><Relationship Id="rT1" Target="../tables/table1.xml"/></Relationships>',
+      ),
+    ],
+  );
+}
+
+/** Every column of `description`, keyed by its worksheet letter. */
+function byLetter(description: SheetDataDescription) {
+  return new Map(description.columns.map((entry) => [entry.letter, entry]));
+}
+
+test('R38: a table anchored away from column A names its own columns', () => {
+  const description = described(
+    tableSheet(['Id', 'Name', DOB_HEADER], { start: 4, consumed: consumes('F', 12) }),
+    'Data',
+  );
+  assert.equal(description.headerSource, 'table-definition');
+  const columns = byLetter(description);
+  assert.equal(columns.get('D')?.header, 'Id');
+  assert.equal(columns.get('E')?.header, 'Name');
+  assert.equal(columns.get('F')?.header, DOB_HEADER);
+
+  const birthdate = columns.get('F')!;
+  assert.equal(birthdate.depth, 'full');
+  assert.equal(birthdate.redacted, true);
+  assert.match(birthdate.redactionReason ?? '', /birthdate/);
+  assert.equal(birthdate.min, null);
+  assert.equal(birthdate.max, null);
+  assert.equal(birthdate.distinctCount, null);
+  assert.equal(birthdate.rowCount, 15);
+  assert.equal(columns.get('E')?.redacted, false);
+});
+
+test('R38: an unnamed table column holds its place instead of shifting its neighbours', () => {
+  // The label list has a hole at position 2. Collapsing it would slide the
+  // birthdate label from column C onto column B.
+  const description = described(
+    tableSheet(['Id', '', DOB_HEADER], { consumed: consumes('C', 12) }),
+    'Data',
+  );
+  assert.equal(description.headerSource, 'table-definition');
+  const columns = byLetter(description);
+  assert.equal(columns.get('A')?.header, 'Id');
+  // The table names nothing here, so the column is reported unlabeled rather
+  // than borrowing the next label along.
+  assert.equal(columns.get('B')?.header, null);
+  assert.equal(columns.get('C')?.header, DOB_HEADER);
+
+  const birthdate = columns.get('C')!;
+  assert.equal(birthdate.redacted, true);
+  assert.equal(birthdate.min, null);
+  assert.equal(birthdate.max, null);
+  assert.equal(birthdate.distinctCount, null);
+  // ...and no clean bill of health is issued for the column beside it.
+  assert.equal(columns.get('B')?.redacted, false);
+  assert.equal(columns.get('B')?.min, null);
+});
+
+test('R38: a table with no readable ref is refused rather than anchored at column A', () => {
+  // The table sits at D:F. Defaulting the anchor to A would map every label
+  // onto empty columns and leave the real birthdate column at F unlabeled and
+  // fully profiled.
+  const description = described(
+    tableSheet(['Id', 'Name', DOB_HEADER], { ref: null, start: 4, consumed: consumes('F', 12) }),
+    'Data',
+  );
+  assert.equal(description.headerSource, 'detected-row');
+  assert.match(description.headerSourceBasis, /no readable ref/);
+  assert.match(description.headerSourceBasis, /labels were not used/);
+
+  const columns = byLetter(description);
+  assert.equal(columns.get('F')?.header, DOB_HEADER);
+  const birthdate = columns.get('F')!;
+  assert.equal(birthdate.redacted, true);
+  assert.equal(birthdate.min, null);
+  assert.equal(birthdate.max, null);
+  assert.equal(birthdate.distinctCount, null);
+});
+
+test('R38: a table whose column count disagrees with the file is refused', () => {
+  // Three labels read against a declared four: the list has a hole somewhere,
+  // and nothing says where, so no label can be trusted to name its own column.
+  const description = described(
+    tableSheet(['Id', 'Name', DOB_HEADER], { declaredCount: 4, consumed: consumes('C', 12) }),
+    'Data',
+  );
+  assert.equal(description.headerSource, 'detected-row');
+  assert.match(description.headerSourceBasis, /states 4 column\(s\) but 3 could be read/);
+
+  const birthdate = byLetter(description).get('C')!;
+  assert.equal(birthdate.header, DOB_HEADER);
+  assert.equal(birthdate.redacted, true);
+  assert.equal(birthdate.min, null);
+  assert.equal(birthdate.distinctCount, null);
+});
+
+test('R38: the override does not lift redaction on the table path either', () => {
+  for (const bytes of [
+    tableSheet(['Id', 'Name', DOB_HEADER], { start: 4 }),
+    tableSheet(['Id', '', DOB_HEADER]),
+    tableSheet(['Id', 'Name', DOB_HEADER], { ref: null, start: 4 }),
+  ]) {
+    const description = described(bytes, 'Data', { override: true });
+    const birthdate = description.columns.find((entry) => entry.header === DOB_HEADER);
+    assert.ok(birthdate, `no birthdate column in ${description.headerSource}`);
+    assert.equal(birthdate.depth, 'full');
+    assert.equal(birthdate.redacted, true);
+    assert.equal(birthdate.min, null);
+    assert.equal(birthdate.max, null);
+    assert.equal(birthdate.distinctCount, null);
+    for (const entry of birthdate.skipped) assert.match(entry.threshold, /not overridable/);
+    assert.equal(JSON.stringify(description).includes('30014'), false, 'table path leaked a raw value');
+  }
+});
+
+// ---- R38: header shapes the guard has to recognize --------------------------
+//
+// The patterns are word-bounded, and `\b` does not fire against an underscore.
+// `SSN` matched while `Employee_SSN` did not — and underscored and camel-cased
+// headers are the house style of anything exported from a payroll system, which
+// is the data R38 exists for. A birthdate has no value shape to fall back on,
+// so a header miss there is the whole guard.
+
+const SEPARATED_HEADERS = [
+  'Employee_SSN',
+  'emp_ssn',
+  'employeeSSN',
+  'EMP_DOB',
+  'Employee.DOB',
+  'Birth_Date',
+  'Date_of_Birth',
+  'birthDate',
+  'Taxpayer_ID',
+  'TAX_TIN',
+] as const;
+
+test('R38: separator- and case-delimited headers reach the same patterns', () => {
+  for (const header of SEPARATED_HEADERS) {
+    const description = described(
+      dataSheet(['Id', header], 15, (r, index) => num(`A${r}`, index) + num(`B${r}`, 30000 + index),
+        consumes('B', 12)),
+      'Data',
+    );
+    const risky = column(description, header);
+    assert.equal(risky.depth, 'full', `${header} did not reach full depth, so the test proves nothing`);
+    assert.equal(risky.redacted, true, `${header} was not redacted`);
+    assert.match(risky.redactionReason ?? '', /R38/);
+    assert.equal(risky.min, null, `${header} leaked a min`);
+    assert.equal(risky.max, null, `${header} leaked a max`);
+    assert.equal(risky.distinctCount, null, `${header} leaked a distinct count`);
+    // Present, not omitted.
+    assert.equal(risky.rowCount, 15);
+    assert.equal(column(description, 'Id').redacted, false);
+  }
+});
+
+test('R38: widening the matcher does not redact ordinary headers', () => {
+  for (const header of ['Region_Code', 'Order_Date', 'unitPrice', 'Ship_To', 'Total_Amount']) {
+    const description = described(
+      dataSheet(['Id', header], 15, (r, index) => num(`A${r}`, index) + num(`B${r}`, 30000 + index),
+        consumes('B', 12)),
+      'Data',
+    );
+    assert.equal(column(description, header).redacted, false, `${header} was redacted in error`);
   }
 });

@@ -27,7 +27,10 @@
  * Headers are looked up *by column number*, never by position. Stage 1's label
  * list collapses blank header cells rather than emitting them, so one gap to
  * the left of an SSN column would otherwise shift every later label by one and
- * run the guard against a neighbour's name.
+ * run the guard against a neighbour's name. A table definition states its
+ * columns positionally instead, so that path is refused outright unless its ref
+ * resolves and its column count matches what the file declares — an alignment
+ * the guard depends on is checked, never assumed.
  *
  * Engine-free: nothing here may import @mog-sdk.
  */
@@ -309,25 +312,62 @@ export function describeSheetData(
   let headerEntries: { readonly column: number; readonly label: string }[] = [];
   /** The row the labels came from; its cells are labels, not data. */
   let headerRow: number | null = detectedRow;
+  // A table's column list is positional — its i-th entry names the i-th column
+  // of its own ref — and that is the whole basis for pairing a label with the
+  // column the R38 guard reads. Both halves are checked rather than assumed: a
+  // ref that does not resolve gives the first label no column to belong to, and
+  // a column count that disagrees with the file's own `count` means the list
+  // has a hole in it. Either way the labels name columns they may not own, so
+  // they are refused and the detected header row — which carries its own column
+  // with every label — is used instead. Defaulting the anchor to column A, or
+  // trusting a short list, silently redacts one column while profiling its
+  // neighbour, which is the one failure this guard cannot have.
+  let tableHeaders: { entries: typeof headerEntries; row: number | null; name: string } | null = null;
+  let tableRefused: string | null = null;
   if (table && table.columns.length > 0) {
+    const anchor = table.ref.match(/^\$?([A-Za-z]+)/)?.[1] ?? null;
+    const name = table.displayName || table.name;
+    if (anchor === null) {
+      tableRefused =
+        `the declared table "${name}" carries no readable ref, so there is no column its first ` +
+        'label belongs to';
+    } else if (table.declaredColumnCount !== null && table.declaredColumnCount !== table.columns.length) {
+      tableRefused =
+        `the declared table "${name}" states ${table.declaredColumnCount} column(s) but ` +
+        `${table.columns.length} could be read, so a label's position no longer names its own column`;
+    } else {
+      const first = colNumber(anchor);
+      tableHeaders = {
+        entries: table.columns
+          .map((label, index) => ({ column: first + index, label }))
+          // An unnamed column holds its place so later labels stay on their own
+          // columns; it names nothing, so it is not a header.
+          .filter((entry) => entry.label !== ''),
+        row: detectedRow ?? (Number(table.ref.match(/^\$?[A-Za-z]+\$?(\d+)/)?.[1] ?? '') || null),
+        name,
+      };
+    }
+  }
+
+  if (tableHeaders) {
     headerSource = 'table-definition';
-    // A table's column list is dense by definition: it declares one entry per
-    // column of its own ref, so position and column agree here.
-    const tableFirstColumn = colNumber(table.ref.match(/^\$?([A-Za-z]+)/)?.[1] ?? 'A');
-    headerEntries = table.columns.map((label, index) => ({ column: tableFirstColumn + index, label }));
-    headerRow = detectedRow ?? (Number(table.ref.match(/^\$?[A-Za-z]+\$?(\d+)/)?.[1] ?? '') || null);
+    headerEntries = tableHeaders.entries;
+    headerRow = tableHeaders.row;
   } else if (detectedRow !== null && role?.header.labels.length) {
     headerSource = 'detected-row';
     headerEntries = role.header.labels.map((entry) => ({ column: entry.column, label: entry.label }));
   }
   const headerByColumn = new Map(headerEntries.map((entry) => [entry.column, entry.label]));
+  const refusedNote = tableRefused ? ` — ${tableRefused}, so its labels were not used` : '';
   const headerSourceBasis =
     headerSource === 'table-definition'
-      ? `headers read from the declared table "${table?.displayName ?? table?.name}" — ` +
+      ? `headers read from the declared table "${tableHeaders?.name}" — ` +
         'the file states them, so they are not inferred'
       : headerSource === 'detected-row'
-        ? `headers read from detected header row ${headerRow} — ${role?.header.basis ?? ''}`
-        : 'no header row was detected and no table declares this region, so columns are unlabeled';
+        ? `headers read from detected header row ${headerRow} — ${role?.header.basis ?? ''}${refusedNote}`
+        : tableRefused
+          ? `columns are unlabeled: ${tableRefused}, and no header row was detected to fall back on`
+          : 'no header row was detected and no table declares this region, so columns are unlabeled';
 
   // ---- Gate ----------------------------------------------------------------
   const columnReferences = new Map<number, number>();

@@ -37,7 +37,19 @@ export interface TableDefinition {
   /** Sheet the table part is related to; null when the relationship is absent. */
   readonly sheet: string | null;
   readonly ref: string;
+  /**
+   * Column names in `ref` order, one entry per declared column.
+   *
+   * Positional by contract: entry `i` names the `i`-th column of `ref`, which
+   * is the only thing that lets Stage 3 pair a label with the column the R38
+   * guard then reads. An unnamed `<tableColumn>` therefore holds its place as
+   * an empty string rather than being dropped — dropping it slides every later
+   * label one column left, and the guard ends up naming one column while
+   * protecting its neighbour.
+   */
   readonly columns: readonly string[];
+  /** The `count` the file itself declares, for callers to check `columns` against. */
+  readonly declaredColumnCount: number | null;
 }
 
 export interface WorkbookMetadata {
@@ -145,9 +157,27 @@ function readTables(
       continue;
     }
     const columns: string[] = [];
+    let unnamed = 0;
     for (const column of xml.matchAll(/<tableColumn\b[^>]*\/?>/g)) {
       const columnName = attr(column[0], 'name');
-      if (columnName !== null) columns.push(columnName);
+      // Position is the contract (see `columns`), so an unnamed column keeps
+      // its slot instead of collapsing the list around it.
+      columns.push(columnName ?? '');
+      if (columnName === null) unnamed += 1;
+    }
+    if (unnamed > 0) {
+      notes.push(
+        `${entry.name} declares ${unnamed} column(s) with no name: they hold their position but ` +
+          'name nothing, so those columns are reported unlabeled.',
+      );
+    }
+    const declared = Number(attr(xml.match(/<tableColumns\b[^>]*>/)?.[0] ?? '', 'count') ?? '');
+    const declaredColumnCount = Number.isInteger(declared) ? declared : null;
+    if (declaredColumnCount !== null && declaredColumnCount !== columns.length) {
+      notes.push(
+        `${entry.name} declares ${declaredColumnCount} column(s) but ${columns.length} could be ` +
+          'read: its label positions cannot be trusted to name their own columns.',
+      );
     }
     const sheet = owners.get(entry.name.replace(/^.*\//, '').toLowerCase()) ?? null;
     if (sheet === null) {
@@ -159,6 +189,7 @@ function readTables(
       sheet,
       ref: attr(open, 'ref') ?? '',
       columns,
+      declaredColumnCount,
     });
   }
   return tables;
