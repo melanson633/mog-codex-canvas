@@ -22,10 +22,13 @@ interface FakeEmbed {
   readonly module: EmbedModule;
   /** Fires the runtime's onEvent callback, as the real embed would. */
   emit(event: unknown): void;
+  /** Drives what attachment.getStatus() reports, as the real renderer would. */
+  setStatus(status: string): void;
 }
 
 function fakeEmbed(): FakeEmbed {
   let sink: EventSink = () => undefined;
+  let status = 'loading';
 
   const view = {
     getActiveSheet: () => ({ sheetId: 's1', sheetName: 'Sheet1' }),
@@ -69,11 +72,18 @@ function fakeEmbed(): FakeEmbed {
     mountSpreadsheetApp: () => ({
       ready: Promise.resolve(),
       view: () => view,
+      getStatus: () => status,
       detach: async () => undefined,
     }),
   } as unknown as EmbedModule;
 
-  return { module, emit: (event) => sink(event) };
+  return {
+    module,
+    emit: (event) => sink(event),
+    setStatus: (next) => {
+      status = next;
+    },
+  };
 }
 
 function host(snapshots: CanvasContextSnapshot[]): HostServices {
@@ -133,6 +143,35 @@ test('adapter: a reveal never replaces the human occupied-cell signal', async ()
     'sequence must be monotonic',
   );
   assert.equal(new Set(sequences).size, sequences.length, 'sequence never repeats');
+
+  await session.dispose();
+});
+
+test('adapter: "renderer ready" waits for the embed to report it', async () => {
+  const embed = fakeEmbed();
+  const adapter = createMogEmbedAdapter(embed.module);
+  const statuses: string[] = [];
+  const services = { ...host([]), onStatus: (status: string) => statuses.push(status) };
+
+  const session = await adapter.open(
+    {} as unknown as HTMLElement,
+    { fileName: 'book.xlsx', bytes: new Uint8Array(), colorScheme: 'system' },
+    services,
+  );
+
+  // The mount resolving proves wiring, not a usable renderer — and the old
+  // header said "ready" here while the grid was still minutes from painting.
+  assert.ok(statuses.includes('canvas mounted — renderer hydrating'));
+  assert.ok(!statuses.includes('ready'), 'the fabricated ready status is gone');
+  assert.ok(!statuses.includes('renderer ready'), 'not ready before the embed says so');
+
+  // The embed's own status flips; the watcher may take up to one poll cycle.
+  embed.setStatus('ready');
+  const deadline = Date.now() + 3000;
+  while (!statuses.includes('renderer ready') && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.equal(statuses.at(-1), 'renderer ready');
 
   await session.dispose();
 });

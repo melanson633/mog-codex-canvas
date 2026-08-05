@@ -94,14 +94,62 @@ export function createMogEmbedAdapter(embed: EmbedModule): CanvasAdapter {
       host.onStatus('mounting canvas');
       const attachment = embed.mountSpreadsheetApp(container, appProps(runtime, workbook, request, host));
       await attachment.ready;
-      host.onStatus('ready');
+      // attachment.ready resolves when the mount is wired, not when the
+      // renderer can paint and answer — on a large workbook that gap has been
+      // minutes. Say only what is known now; "renderer ready" comes later,
+      // from the embed's own status.
+      host.onStatus('canvas mounted — renderer hydrating');
       // The events above only fire on change; seed the initial presence from
       // the mounted view so the bus knows about the canvas before any click.
       tracker.seed(attachment);
+      const stopReadiness = watchRendererReadiness(attachment, host);
 
-      return session(runtime, workbook, attachment, stopDirty, tracker);
+      return session(runtime, workbook, attachment, stopDirty, tracker, stopReadiness);
     },
   };
+}
+
+const RENDERER_POLL_MS = 500;
+
+/**
+ * Reports "renderer ready" only when the embed itself says so twice over:
+ * attachment.getStatus() === 'ready' AND the view answers a real query.
+ * Nothing here fabricates readiness — an 'error' status is reported as such,
+ * and a disposed attachment ends the watch silently. Returns a stop function
+ * for session teardown.
+ */
+function watchRendererReadiness(
+  attachment: SpreadsheetAppAttachmentHandle,
+  host: HostServices,
+): () => void {
+  const timer = setInterval(() => {
+    let status: string;
+    try {
+      status = attachment.getStatus();
+    } catch {
+      clearInterval(timer);
+      return;
+    }
+    if (status === 'disposed') {
+      clearInterval(timer);
+      return;
+    }
+    if (status === 'error') {
+      clearInterval(timer);
+      host.onStatus('renderer error');
+      return;
+    }
+    if (status !== 'ready') return;
+    try {
+      attachment.view().getActiveSheet();
+    } catch {
+      // Status says ready but the view cannot answer yet — keep waiting.
+      return;
+    }
+    clearInterval(timer);
+    host.onStatus('renderer ready');
+  }, RENDERER_POLL_MS);
+  return () => clearInterval(timer);
 }
 
 /**
@@ -320,6 +368,7 @@ function session(
   attachment: SpreadsheetAppAttachmentHandle,
   stopDirty: () => void,
   tracker: ContextTracker,
+  stopReadiness: () => void,
 ): CanvasSession {
   return {
     async save() {
@@ -357,6 +406,7 @@ function session(
     },
 
     async dispose() {
+      stopReadiness();
       stopDirty();
       try {
         await attachment.detach();
