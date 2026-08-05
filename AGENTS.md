@@ -36,6 +36,13 @@ If `workbooks/` is empty, `npm run headless` writes a sample.
 changes. Touching the MCP or plugin lane adds `check:mcp` / `check:plugin`;
 touching the canvas or its mount adds `check:app`.
 
+`plugins/mog-canvas/ui/dist` is a gitignored build artifact that the MCP server
+serves and `check:app` drives, and it is built from `src/` as well as the
+component's own sources. `check:app` rebuilds it when this checkout's sources
+have moved since the last build; `check:mcp` says so but does not rebuild, since
+nothing it asserts drives the canvas. `npm run check:ui-bundle` answers the
+question on its own, and `npm run build:mcp-app` records what it built from.
+
 ## Invariants
 
 These are enforced by checks, not just convention. Breaking one usually means

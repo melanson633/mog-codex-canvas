@@ -43,6 +43,7 @@ import { createWorkbook } from '@mog-sdk/sdk';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { resolveBrowserExecutable } from './browser-executable.mjs';
+import { ensureFreshBundle } from './ui-bundle.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const uiDist = join(repoRoot, 'plugins', 'mog-canvas', 'ui', 'dist');
@@ -93,6 +94,13 @@ if (process.platform === 'win32') {
     console.log('preflight: netstat unavailable, skipping listener survey');
   }
 }
+
+// ---- Preflight: is the bundle this run drives the current source? ------------
+// The dist is a gitignored artifact, so a clone has none and a pull that touches
+// src/ leaves a stale one. Driving it would make this harness report on code
+// that is not the code in the checkout — and the symptom is a four-minute
+// timeout naming the CSP frame, not the bundle.
+await ensureFreshBundle();
 
 // ---- Fixture: disposable copy of the sample workbook -------------------------
 
