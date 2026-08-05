@@ -141,6 +141,13 @@ body,
   padding: 8px;
 }
 
+/* Shape-first panel sits above the canvas, so its edge flips to the bottom. */
+.report.shape {
+  border-top: none;
+  border-bottom: 1px solid var(--edge);
+  flex: none;
+}
+
 .report-head {
   display: flex;
   flex-wrap: wrap;

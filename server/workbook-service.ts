@@ -30,6 +30,12 @@ import {
 } from './path-policy.ts';
 import { looksLikeWorkbook } from './ooxml-cache.ts';
 import {
+  profileWorkbook,
+  readRangeFromBytes,
+  type ProfileResult,
+  type RangeReadResult,
+} from './workbook-profile.ts';
+import {
   checkValueFidelity,
   fidelityNeedsEngine,
   type EngineWorkbook,
@@ -122,6 +128,24 @@ export interface ValidationReport {
   readonly sheets: readonly SheetSummary[];
   /** Cached-value fidelity of the on-disk file (passed / failed / unverified). */
   readonly fidelity: FidelityReport;
+}
+
+export interface WorkbookProfileResult {
+  readonly name: string;
+  readonly revision: string;
+  readonly profile: ProfileResult;
+  /** Fidelity verdict earned for exactly these bytes, when one exists. */
+  readonly fidelity: FidelityReport | null;
+  /** Honest label for what these numbers describe. Shown verbatim in UIs. */
+  readonly provenance: string;
+}
+
+export interface WorkbookRangeResult {
+  readonly name: string;
+  readonly revision: string;
+  readonly read: RangeReadResult;
+  readonly fidelity: FidelityReport | null;
+  readonly provenance: string;
 }
 
 export interface OpenResult {
@@ -272,6 +296,18 @@ export interface WorkbookService {
   /** Read current bytes without creating a session (dev-bridge GET). */
   read(name: string): Promise<{ bytes: Uint8Array; revision: string }>;
 
+  /**
+   * Byte-first shape profile of the saved file: milliseconds, engine-free.
+   * Reflects the last save on disk — never unsaved canvas edits.
+   */
+  profile(name: string): Promise<WorkbookProfileResult>;
+
+  /**
+   * Cached values + formula text for one sheet range, straight from the saved
+   * bytes. Same provenance rules as profile(): truth of the last save.
+   */
+  readRange(name: string, sheet: string, range: string): Promise<WorkbookRangeResult>;
+
   /** Open a tracked session: bytes + the revision saves must be based on. */
   openSession(name: string): Promise<OpenResult>;
 
@@ -386,6 +422,40 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
     const file = await policy(() => resolveReadTarget(root, name, 'workbook'));
     const bytes = await readFile(file);
     return { bytes, revision: revisionOf(bytes) };
+  }
+
+  /** What byte reads are the truth of — shown verbatim wherever they travel. */
+  function byteProvenance(revision: string): string {
+    return (
+      `as-saved at revision ${revision.slice(0, 12)}… — reflects the last save on disk, ` +
+      'not unsaved canvas edits'
+    );
+  }
+
+  async function profile(name: string): Promise<WorkbookProfileResult> {
+    const { bytes, revision } = await read(name);
+    return {
+      name,
+      revision,
+      profile: profileWorkbook(bytes),
+      fidelity: fidelityCache.get(revision) ?? null,
+      provenance: byteProvenance(revision),
+    };
+  }
+
+  async function readRange(
+    name: string,
+    sheet: string,
+    range: string,
+  ): Promise<WorkbookRangeResult> {
+    const { bytes, revision } = await read(name);
+    return {
+      name,
+      revision,
+      read: readRangeFromBytes(bytes, sheet, range),
+      fidelity: fidelityCache.get(revision) ?? null,
+      provenance: byteProvenance(revision),
+    };
   }
 
   function requireSession(sessionId: string): SessionState {
@@ -721,6 +791,8 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
     root,
     list,
     read,
+    profile,
+    readRange,
 
     async openSession(name) {
       const { bytes, revision } = await read(name);

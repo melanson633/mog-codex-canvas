@@ -11,6 +11,8 @@
  * Endpoints (all under /api, bound to 127.0.0.1 by the dev server):
  *   GET  /api/config            -> { root, files }
  *   GET  /api/workbook?path=    -> raw xlsx bytes (+ x-workbook-revision header)
+ *   GET  /api/profile?path=     -> byte-first shape profile of the saved file
+ *        (engine-free; provenance-labeled "as-saved at revision …")
  *   PUT  /api/workbook?path=[&expectedRevision=] -> write xlsx bytes
  *        (previous file kept as .bak; a stale expectedRevision is refused and
  *         the attempted bytes are preserved as a .conflict-*.xlsx sibling)
@@ -115,6 +117,13 @@ export function createBridgeHandler(options: FileBridgeOptions): BridgeHandler {
         });
         res.end(Buffer.from(bytes));
         return;
+      }
+
+      if (url.pathname === '/api/profile' && req.method === 'GET') {
+        if (!name) throw new WorkbookError('invalid-path', 'Missing "path" query parameter');
+        // Byte-first shape read: milliseconds, engine-free, truth of the last
+        // save. This is what the app renders while the canvas hydrates.
+        return sendJson(res, 200, await service.profile(name));
       }
 
       if (url.pathname === '/api/workbook' && req.method === 'PUT') {

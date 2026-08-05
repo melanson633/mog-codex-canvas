@@ -262,6 +262,32 @@ describe('bridge endpoints', () => {
     assert.equal(Buffer.compare(await readFile(join(root, 'shot.png')), png), 0);
   });
 
+  it('GET /api/profile returns a byte-first shape profile with provenance', async () => {
+    const bytes = await xlsxBytes('A1', 'profiled');
+    await fetch(`${origin}/api/workbook?path=profiled.xlsx`, {
+      method: 'PUT',
+      body: new Uint8Array(bytes),
+    });
+    const body = await fetch(`${origin}/api/profile?path=profiled.xlsx`).then((r) => r.json());
+    assert.equal(body.profile.status, 'profiled');
+    assert.ok(body.profile.sheets.length > 0, 'a real workbook profiles at least one sheet');
+    assert.match(body.provenance, /as-saved at revision/);
+    assert.equal(body.revision.length, 64);
+  });
+
+  it('GET /api/profile reports unreadable bytes as unreadable, never empty', async () => {
+    // book.xlsx holds plain text, not a ZIP — the profile must say so.
+    const body = await fetch(`${origin}/api/profile?path=book.xlsx`).then((r) => r.json());
+    assert.equal(body.profile.status, 'unreadable');
+    assert.ok(body.profile.reason.length > 0);
+  });
+
+  it('rejects a profile read that leaves the root through a junction', async () => {
+    const res = await fetch(`${origin}/api/profile?path=escape/secret.xlsx`);
+    assert.equal(res.status, 400);
+    assert.match((await res.json()).error, /escapes the workbook root/);
+  });
+
   it('rejects a workbook read that leaves the root through a junction', async () => {
     const res = await fetch(`${origin}/api/workbook?path=escape/secret.xlsx`);
     assert.equal(res.status, 400);
