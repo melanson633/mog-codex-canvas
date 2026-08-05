@@ -174,6 +174,116 @@ export function createMogCanvasServer(options: MogCanvasServerOptions): McpServe
     }),
   );
 
+  server.registerTool(
+    'graph_workbook',
+    {
+      title: 'Graph workbook dependencies (byte-first)',
+      description:
+        'Build the intra-sheet formula dependency graph straight from the saved bytes, engine-free: nodes, edges, chain depth per sheet, cycles, and candidate inputs and outputs. The graph is built only for sheets whose measured role is model or mixed — every skipped sheet is named with its role and the reason, so "not in the graph" never reads as "no formulas". Honesty caveats travel with the numbers: structured table references, external links, R1C1 text, and shared-formula followers are counted by cause rather than resolved, so operand counts are floors; range operands stay rectangles and are answered by containment, never expanded. Give a target cell as "Sheet!A1" for its precedents and dependents, and a hop bound for transitive dependents. Provenance is load-bearing: this is the truth of the last save on disk, never unsaved canvas edits. Unreadable bytes come back as a typed "unreadable" graph with the reason.',
+      inputSchema: {
+        name: z.string().describe('Workbook name relative to the authorized root'),
+        target: z
+          .string()
+          .optional()
+          .describe('Cell to answer about, qualified as "Sheet!A1"'),
+        maxHops: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe('Hop bound for transitive dependents of the target'),
+        includeSheets: z
+          .array(z.string())
+          .optional()
+          .describe('Sheets to build regardless of role, for an on-demand deep call'),
+      },
+    },
+    guarded(
+      async ({
+        name,
+        target,
+        maxHops,
+        includeSheets,
+      }: {
+        name: string;
+        target?: string;
+        maxHops?: number;
+        includeSheets?: string[];
+      }) => {
+        const result = await service.graph(name, { target, maxHops, includeSheets });
+        const graph = result.graph;
+        let summary: string;
+        if (graph.status === 'built') {
+          const skipped = graph.skipped.length;
+          summary =
+            `${result.name}: ${graph.nodes} formula node(s), ${graph.edges} edge(s) across ` +
+            `${graph.includedSheets.length} sheet(s), ${skipped} sheet(s) skipped by role. ` +
+            `Max chain depth ${graph.depth.maxDepth}, ${graph.cycles} cycle(s), ` +
+            `${graph.candidateInputs.length} candidate input(s) and ` +
+            `${graph.candidateOutputs.length} candidate output(s). ` +
+            `${graph.unresolved.length} operand(s) counted but not resolved` +
+            `${graph.truncated ? `; ${graph.truncationReason}` : ''} — built in ${graph.elapsedMs} ms. ` +
+            `${result.provenance}`;
+          if (graph.target) {
+            summary +=
+              ` Target ${graph.target.node}: ${graph.target.precedents.length} precedent(s), ` +
+              `${graph.target.dependents.length} direct dependent(s)` +
+              (graph.target.transitiveDependents
+                ? `, ${graph.target.transitiveDependents.reached.length} reached within the hop bound` +
+                  (graph.target.transitiveDependents.truncated
+                    ? ` (${graph.target.transitiveDependents.truncationReason})`
+                    : '')
+                : '') +
+              '.';
+          }
+        } else {
+          summary = `${result.name} is not readable as .xlsx: ${graph.reason}`;
+        }
+        return ok({ ...result }, summary);
+      },
+    ),
+  );
+
+  server.registerTool(
+    'describe_sheet_data',
+    {
+      title: 'Describe sheet data (byte-first)',
+      description:
+        'Describe one sheet\'s columns from the saved bytes, engine-free: header source, observed type, row and null counts, and — where the data is measurably consumed elsewhere in the workbook — extents and distinct counts. Depth is proportional to measured use, and every column states the evidence and threshold that set its depth, so a shallow column reads as "not worth the scan yet", never as "nothing there". Two guarantees are unconditional: no raw cell values are returned as samples (use read_range for values), and a column whose header or value shape indicates a taxpayer number or a birthdate reports only its name, type, row count, and null count, marked redacted with the reason — the depth override does not lift redaction. Birthdate detection is header-only, so a date-of-birth column under an unrelated header will not be caught by shape. Failures are typed: unreadable or no-such-sheet, the latter naming the sheets that do exist.',
+      inputSchema: {
+        name: z.string().describe('Workbook name relative to the authorized root'),
+        sheet: z.string().describe('Sheet name, e.g. "Sheet1"'),
+        override: z
+          .boolean()
+          .optional()
+          .describe('Full depth regardless of the materiality gate. Never lifts redaction.'),
+      },
+    },
+    guarded(
+      async ({ name, sheet, override }: { name: string; sheet: string; override?: boolean }) => {
+        const result = await service.describeSheet(name, sheet, { override });
+        const description = result.description;
+        let summary: string;
+        if (description.status === 'described') {
+          const redacted = description.columns.filter((column) => column.redacted).length;
+          summary =
+            `${result.name} ${description.sheet} (role: ${description.role}): ` +
+            `${description.columns.length} column(s) from ${description.headerSource}, ` +
+            `box ${description.observedBox?.ref ?? 'not observed'}` +
+            (description.statisticsSkipped ? ', statistics not run' : '') +
+            `. ${redacted} column(s) redacted as high-risk personal data` +
+            `${description.truncated ? `; ${description.truncationReason}` : ''} — described in ` +
+            `${description.elapsedMs} ms. ${result.provenance}`;
+        } else if (description.status === 'no-such-sheet') {
+          summary = `${result.name} has no sheet named ${sheet}. Sheets present: ${description.sheets.join(', ')}.`;
+        } else {
+          summary = `${result.name} is not readable as .xlsx: ${description.reason}`;
+        }
+        return ok({ ...result }, summary);
+      },
+    ),
+  );
+
   registerAppTool(
     server,
     'open_workbook',

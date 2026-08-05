@@ -1,5 +1,6 @@
 /**
- * Byte-first MCP tools: profile_workbook and read_range.
+ * Byte-first MCP tools: profile_workbook, read_range, graph_workbook, and
+ * describe_sheet_data.
  *
  * These tools exist so an agent can orient on a workbook in milliseconds while
  * the canvas renderer is still hydrating — so the tests run without the engine
@@ -18,6 +19,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { createWorkbookService } from './workbook-service.ts';
 import { createMogCanvasServer } from './mcp/mog-canvas-server.ts';
+import { datasetFixture, modelFixture } from './test-fixtures.ts';
 
 // ---- Fixture builder --------------------------------------------------------
 
@@ -209,4 +211,260 @@ test('mcp: read_range failures are typed, not thrown prose', async (t) => {
     range: 'not-a-range',
   });
   assert.equal(bad.read.status, 'bad-range');
+});
+
+// ---- The staged pipeline on the wire ---------------------------------------
+
+/** Prose summary of a tool call — the text an agent reads before the payload. */
+async function summary(h: Harness, name: string, args: Record<string, unknown>): Promise<string> {
+  const result = await h.call(name, args);
+  assert.equal(result.isError, undefined, JSON.stringify(result.content));
+  const text = (result.content as { type: string; text?: string }[]).find(
+    (item) => item.type === 'text',
+  )?.text;
+  assert.ok(text, 'tool returned no text summary');
+  return text;
+}
+
+/** The structured error body a refused call carries. */
+async function refusal(h: Harness, name: string, args: Record<string, unknown>) {
+  const result = await h.call(name, args);
+  assert.equal(result.isError, true, `${name} was not refused`);
+  const text = (result.content as { type: string; text?: string }[])[0]?.text ?? '{}';
+  return JSON.parse(text) as { code: string; message: string };
+}
+
+interface GraphPayloadShape {
+  readonly graph: {
+    readonly status: string;
+    readonly nodes: number;
+    readonly includedSheets: readonly string[];
+    readonly skipped: readonly { name: string; role: string; basis: string }[];
+    readonly reason?: string;
+    readonly target: {
+      readonly node: string;
+      readonly precedents: readonly { kind: string; sheet: string; ref?: string; address?: string }[];
+      readonly dependents: readonly string[];
+      readonly transitiveDependents: {
+        readonly reached: readonly { node: string; hops: number }[];
+        readonly truncated: boolean;
+        readonly truncationReason: string | null;
+      } | null;
+    } | null;
+  };
+  readonly provenance: string;
+}
+
+interface DescribePayloadShape {
+  readonly description: {
+    readonly status: string;
+    readonly sheet?: string;
+    readonly sheets?: readonly string[];
+    readonly reason?: string;
+    readonly columns: readonly {
+      readonly header: string;
+      readonly redacted: boolean;
+      readonly redactionReason: string | null;
+      readonly rowCount: number | null;
+      readonly min: unknown;
+      readonly max: unknown;
+      readonly distinctCount: number | null;
+      readonly depth: string;
+    }[];
+  };
+  readonly provenance: string;
+}
+
+test('mcp: the new tools carry the same provenance wording as profile_workbook', async (t) => {
+  const h = await harness(t);
+  await writeFile(join(h.root, 'model.xlsx'), modelFixture());
+
+  const profile = await h.payload<{ provenance: string }>('profile_workbook', {
+    name: 'model.xlsx',
+  });
+  const graph = await h.payload<GraphPayloadShape>('graph_workbook', { name: 'model.xlsx' });
+  const described = await h.payload<DescribePayloadShape>('describe_sheet_data', {
+    name: 'model.xlsx',
+    sheet: 'Data',
+  });
+
+  // Verbatim, not merely similar: one wording for "what these numbers describe".
+  assert.equal(graph.provenance, profile.provenance);
+  assert.equal(described.provenance, profile.provenance);
+  assert.match(profile.provenance, /as-saved at revision/);
+});
+
+test('mcp: every new tool summary restates the provenance in its prose', async (t) => {
+  const h = await harness(t);
+  await writeFile(join(h.root, 'model.xlsx'), modelFixture());
+  const { provenance } = await h.payload<{ provenance: string }>('profile_workbook', {
+    name: 'model.xlsx',
+  });
+
+  // The summary is what an agent reads first; the caveat must not live only in
+  // the payload it may never open.
+  assert.ok((await summary(h, 'graph_workbook', { name: 'model.xlsx' })).includes(provenance));
+  assert.ok(
+    (await summary(h, 'describe_sheet_data', { name: 'model.xlsx', sheet: 'Data' })).includes(
+      provenance,
+    ),
+  );
+});
+
+test('mcp: graph_workbook answers precedents and dependents for a target cell', async (t) => {
+  const h = await harness(t);
+  await writeFile(join(h.root, 'model.xlsx'), modelFixture());
+
+  const result = await h.payload<GraphPayloadShape>('graph_workbook', {
+    name: 'model.xlsx',
+    target: 'Estimate!B66',
+  });
+  assert.equal(result.graph.status, 'built');
+  const target = result.graph.target;
+  assert.ok(target, 'no target block');
+  assert.equal(target.node, 'Estimate!B66');
+  // SUM(Data!B2:B10) stays a rectangle — KTD4, never expanded into nine cells.
+  assert.deepEqual(
+    target.precedents.map((precedent) => `${precedent.kind}:${precedent.sheet}!${precedent.ref ?? precedent.address}`),
+    ['range:Data!B2:B10'],
+  );
+  assert.deepEqual([...target.dependents].sort(), ['Estimate!C66', 'Summary!F20']);
+  // No hop bound was asked for, so none is invented.
+  assert.equal(target.transitiveDependents, null);
+  // Dataset sheets are named as skipped, so absence never reads as emptiness.
+  assert.ok(result.graph.skipped.some((sheet) => sheet.name === 'Data'));
+});
+
+test('mcp: graph_workbook returns hop distances when a hop bound is given', async (t) => {
+  const h = await harness(t);
+  await writeFile(join(h.root, 'model.xlsx'), modelFixture());
+
+  const result = await h.payload<GraphPayloadShape>('graph_workbook', {
+    name: 'model.xlsx',
+    target: 'Estimate!B66',
+    maxHops: 2,
+  });
+  const reached = result.graph.target?.transitiveDependents?.reached ?? [];
+  assert.deepEqual(
+    reached.map((node) => [node.node, node.hops]).sort(),
+    [
+      ['Estimate!C66', 1],
+      ['Summary!F20', 1],
+    ],
+  );
+});
+
+test('mcp: describe_sheet_data redacts payroll columns and returns no raw values', async (t) => {
+  const h = await harness(t);
+  await writeFile(join(h.root, 'data.xlsx'), datasetFixture());
+
+  const result = await h.payload<DescribePayloadShape>('describe_sheet_data', {
+    name: 'data.xlsx',
+    sheet: 'Raw',
+  });
+  assert.equal(result.description.status, 'described');
+  const byHeader = new Map(result.description.columns.map((column) => [column.header, column]));
+  for (const header of ['SSN', 'Date of Birth', 'Employee ID']) {
+    const column = byHeader.get(header);
+    assert.ok(column, `no column headed ${header}`);
+    assert.equal(column.redacted, true);
+    assert.ok((column.redactionReason ?? '').length > 0, `${header} redacted without a reason`);
+    // Redaction is reported, not silently emptied: the shape stays, the
+    // statistics that could re-identify a person never appear.
+    assert.equal(column.min, null);
+    assert.equal(column.max, null);
+    assert.equal(column.distinctCount, null);
+  }
+  // R39 structurally: no cell value from the fixture reaches the wire.
+  const wire = JSON.stringify(result);
+  for (const value of ['123-45-6', '987-65-4', 'Row 1', 'note 3']) {
+    assert.ok(!wire.includes(value), `raw value ${value} crossed the tool boundary`);
+  }
+});
+
+test('mcp: the depth override lifts the materiality gate but never redaction', async (t) => {
+  const h = await harness(t);
+  await writeFile(join(h.root, 'data.xlsx'), datasetFixture());
+
+  const result = await h.payload<DescribePayloadShape>('describe_sheet_data', {
+    name: 'data.xlsx',
+    sheet: 'Raw',
+    override: true,
+  });
+  const byHeader = new Map(result.description.columns.map((column) => [column.header, column]));
+  // A column nothing consumes is profiled in full when the caller insists...
+  assert.equal(byHeader.get('Notes')?.depth, 'full');
+  assert.equal(byHeader.get('Notes')?.rowCount, 3000);
+  // ...and the high-risk column is still redacted. The override is not a key.
+  assert.equal(byHeader.get('SSN')?.redacted, true);
+  assert.equal(byHeader.get('SSN')?.min, null);
+});
+
+test('mcp: describe_sheet_data names the sheets that do exist when one is missing', async (t) => {
+  const h = await harness(t);
+  await writeFile(join(h.root, 'data.xlsx'), datasetFixture());
+
+  const result = await h.payload<DescribePayloadShape>('describe_sheet_data', {
+    name: 'data.xlsx',
+    sheet: 'NoSuchSheet',
+  });
+  assert.equal(result.description.status, 'no-such-sheet');
+  assert.deepEqual(result.description.sheets, ['Raw', 'Rollup']);
+});
+
+test('mcp: the new tools report unreadable bytes as typed unknown, not a throw', async (t) => {
+  const h = await harness(t);
+  await writeFile(join(h.root, 'broken.xlsx'), 'this is not a zip archive');
+
+  const graph = await h.payload<GraphPayloadShape>('graph_workbook', { name: 'broken.xlsx' });
+  assert.equal(graph.graph.status, 'unreadable');
+  assert.ok((graph.graph.reason ?? '').length > 0);
+
+  const described = await h.payload<DescribePayloadShape>('describe_sheet_data', {
+    name: 'broken.xlsx',
+    sheet: 'Raw',
+  });
+  assert.equal(described.description.status, 'unreadable');
+  assert.ok((described.description.reason ?? '').length > 0);
+});
+
+test('mcp: a path outside the root is refused with the same code as the older tools', async (t) => {
+  const h = await harness(t);
+  await writeFile(join(h.root, 'model.xlsx'), modelFixture());
+
+  const escape = '../outside.xlsx';
+  const baseline = await refusal(h, 'profile_workbook', { name: escape });
+  assert.equal(baseline.code, 'invalid-path');
+  assert.equal((await refusal(h, 'graph_workbook', { name: escape })).code, baseline.code);
+  assert.equal(
+    (await refusal(h, 'describe_sheet_data', { name: escape, sheet: 'Raw' })).code,
+    baseline.code,
+  );
+});
+
+test('mcp: profile_workbook now carries metadata without disturbing its old fields', async (t) => {
+  const h = await harness(t);
+  await writeFile(join(h.root, 'model.xlsx'), modelFixture());
+
+  const result = await h.payload<{
+    profile: { status: string; sheets: { name: string }[]; genreBasis: string };
+    metadata: {
+      status: string;
+      definedNames: readonly { name: string; scope: string | null }[];
+      document: { creator: string | null };
+    };
+    provenance: string;
+  }>('profile_workbook', { name: 'model.xlsx' });
+
+  // The additive block.
+  assert.equal(result.metadata.status, 'extracted');
+  assert.deepEqual(
+    result.metadata.definedNames.map((entry) => entry.name).sort(),
+    ['LocalBox', 'TaxRate'],
+  );
+  // Everything the tool already promised is unchanged.
+  assert.equal(result.profile.status, 'profiled');
+  assert.equal(result.profile.sheets.length, 5);
+  assert.match(result.profile.genreBasis, /uncalibrated/i);
+  assert.match(result.provenance, /as-saved at revision/);
 });

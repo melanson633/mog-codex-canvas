@@ -36,6 +36,14 @@ import {
   type ProfileResult,
   type RangeReadResult,
 } from './workbook-profile.ts';
+import { extractWorkbookMetadata, type WorkbookMetadataResult } from './workbook-metadata.ts';
+import {
+  buildDependencyGraph,
+  toGraphPayload,
+  type GraphPayload,
+  type UnreadableGraph,
+} from './workbook-graph.ts';
+import { describeSheetData, type SheetDataResult } from './sheet-schema.ts';
 import {
   checkValueFidelity,
   fidelityNeedsEngine,
@@ -133,6 +141,8 @@ export interface WorkbookProfileResult {
   readonly name: string;
   readonly revision: string;
   readonly profile: ProfileResult;
+  /** Document properties, defined names, and table definitions. Additive. */
+  readonly metadata: WorkbookMetadataResult;
   /** Fidelity verdict earned for exactly these bytes, when one exists. */
   readonly fidelity: FidelityReport | null;
   /** Honest label for what these numbers describe. Shown verbatim in UIs. */
@@ -143,6 +153,36 @@ export interface WorkbookRangeResult {
   readonly name: string;
   readonly revision: string;
   readonly read: RangeReadResult;
+  readonly fidelity: FidelityReport | null;
+  readonly provenance: string;
+}
+
+export interface GraphOptions {
+  /** `Sheet!Address` to answer precedent and dependent questions about. */
+  readonly target?: string;
+  /** Hop bound for transitive dependents of `target`. */
+  readonly maxHops?: number;
+  /** Sheets to build regardless of role, for on-demand deep calls. */
+  readonly includeSheets?: readonly string[];
+}
+
+export interface SheetDataOptions {
+  /** Full depth regardless of the materiality gate. Never bypasses redaction. */
+  readonly override?: boolean;
+}
+
+export interface WorkbookGraphResult {
+  readonly name: string;
+  readonly revision: string;
+  readonly graph: GraphPayload | UnreadableGraph;
+  readonly fidelity: FidelityReport | null;
+  readonly provenance: string;
+}
+
+export interface SheetDataDescriptionResult {
+  readonly name: string;
+  readonly revision: string;
+  readonly description: SheetDataResult;
   readonly fidelity: FidelityReport | null;
   readonly provenance: string;
 }
@@ -307,6 +347,22 @@ export interface WorkbookService {
    */
   readRange(name: string, sheet: string, range: string): Promise<WorkbookRangeResult>;
 
+  /**
+   * The intra-workbook dependency graph over model-role sheets, from the saved
+   * bytes. Sheets left out are reported with the role that excluded them.
+   */
+  graph(name: string, options?: GraphOptions): Promise<WorkbookGraphResult>;
+
+  /**
+   * Column schema and population statistics for one sheet, at a depth
+   * proportional to measured consumption. High-risk columns are redacted.
+   */
+  describeSheet(
+    name: string,
+    sheet: string,
+    options?: SheetDataOptions,
+  ): Promise<SheetDataDescriptionResult>;
+
   /** Open a tracked session: bytes + the revision saves must be based on. */
   openSession(name: string): Promise<OpenResult>;
 
@@ -437,6 +493,7 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
       name,
       revision,
       profile: profileWorkbook(bytes),
+      metadata: extractWorkbookMetadata(bytes),
       fidelity: fidelityCache.get(revision) ?? null,
       provenance: byteProvenance(revision),
     };
@@ -452,6 +509,41 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
       name,
       revision,
       read: readRangeFromBytes(bytes, sheet, range),
+      fidelity: fidelityCache.get(revision) ?? null,
+      provenance: byteProvenance(revision),
+    };
+  }
+
+  async function graph(name: string, options: GraphOptions = {}): Promise<WorkbookGraphResult> {
+    const { bytes, revision } = await read(name);
+    const built = buildDependencyGraph(bytes, {
+      ...(options.includeSheets ? { includeSheets: options.includeSheets } : {}),
+    });
+    return {
+      name,
+      revision,
+      graph:
+        built.status === 'built'
+          ? toGraphPayload(built, {
+              ...(options.target ? { target: options.target } : {}),
+              ...(options.maxHops === undefined ? {} : { maxHops: options.maxHops }),
+            })
+          : built,
+      fidelity: fidelityCache.get(revision) ?? null,
+      provenance: byteProvenance(revision),
+    };
+  }
+
+  async function describeSheet(
+    name: string,
+    sheet: string,
+    options: SheetDataOptions = {},
+  ): Promise<SheetDataDescriptionResult> {
+    const { bytes, revision } = await read(name);
+    return {
+      name,
+      revision,
+      description: describeSheetData(bytes, sheet, options),
       fidelity: fidelityCache.get(revision) ?? null,
       provenance: byteProvenance(revision),
     };
@@ -792,6 +884,8 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
     read,
     profile,
     readRange,
+    graph,
+    describeSheet,
 
     async openSession(name) {
       const { bytes, revision } = await read(name);

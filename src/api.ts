@@ -77,11 +77,52 @@ export interface ProfileUnreadable {
   readonly reason: string;
 }
 
+export interface DocumentMetadata {
+  readonly creator: string | null;
+  readonly lastModifiedBy: string | null;
+  readonly created: string | null;
+  readonly modified: string | null;
+  readonly application: string | null;
+  readonly appVersion: string | null;
+}
+
+export interface DefinedNameEntry {
+  readonly name: string;
+  /** Reference text exactly as the file recorded it — never normalized. */
+  readonly reference: string;
+  /** Owning sheet for a sheet-scoped name; null for workbook-global names. */
+  readonly scope: string | null;
+}
+
+export interface TableDefinition {
+  readonly name: string;
+  readonly displayName: string;
+  readonly sheet: string | null;
+  readonly ref: string;
+  readonly columns: readonly string[];
+}
+
+export interface WorkbookMetadata {
+  readonly status: 'extracted';
+  readonly document: DocumentMetadata;
+  readonly definedNames: readonly DefinedNameEntry[];
+  readonly tables: readonly TableDefinition[];
+  /** Why any field above is degraded. Empty when nothing was missing. */
+  readonly notes: readonly string[];
+}
+
+export interface UnreadableMetadata {
+  readonly status: 'unreadable';
+  readonly reason: string;
+}
+
 /** Byte-first shape profile: truth of the last save, engine-free. */
 export interface WorkbookProfileResponse {
   readonly name: string;
   readonly revision: string;
   readonly profile: ProfileShape | ProfileUnreadable;
+  /** Document properties, defined names, and table definitions. Additive. */
+  readonly metadata: WorkbookMetadata | UnreadableMetadata;
   readonly fidelity: FidelityReport | null;
   readonly provenance: string;
 }

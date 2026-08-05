@@ -135,6 +135,49 @@ export interface DependencyGraphOptions {
   readonly metadata?: WorkbookMetadata;
 }
 
+export interface GraphTargetAnswer {
+  readonly node: string;
+  readonly precedents: readonly Precedent[];
+  readonly dependents: readonly string[];
+  /** Present only when a hop bound was asked for. */
+  readonly transitiveDependents: TransitiveDependents | null;
+}
+
+/**
+ * The graph as plain data. The query methods answer from indexes that only
+ * exist in memory, so anything crossing a tool boundary carries the figures
+ * plus the answers actually asked for, never the closures.
+ */
+export type GraphPayload = Omit<
+  DependencyGraph,
+  'precedentsOf' | 'dependentsOf' | 'transitiveDependentsOf'
+> & { readonly target: GraphTargetAnswer | null };
+
+export interface GraphPayloadOptions {
+  /** `Sheet!Address` to answer precedent and dependent questions about. */
+  readonly target?: string;
+  readonly maxHops?: number;
+}
+
+export function toGraphPayload(
+  graph: DependencyGraph,
+  options: GraphPayloadOptions = {},
+): GraphPayload {
+  const { precedentsOf, dependentsOf, transitiveDependentsOf, ...data } = graph;
+  const target = options.target
+    ? {
+        node: options.target,
+        precedents: precedentsOf(options.target),
+        dependents: dependentsOf(options.target),
+        transitiveDependents:
+          options.maxHops === undefined
+            ? null
+            : transitiveDependentsOf(options.target, options.maxHops),
+      }
+    : null;
+  return { ...data, target };
+}
+
 export const NODE_CAP = 200000;
 export const EDGE_CAP = 400000;
 
