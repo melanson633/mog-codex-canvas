@@ -31,10 +31,13 @@ If `workbooks/` is empty, `npm run headless` writes a sample.
 | `npm run check:mcp` | — |
 | `npm run check:app` | — |
 | `npm run check:plugin` | — |
+| `npm run check:sdk-surface` | — |
 
 `npm run typecheck && npm test && npm run verify` is the fast gate for most
 changes. Touching the MCP or plugin lane adds `check:mcp` / `check:plugin`;
-touching the canvas or its mount adds `check:app`.
+touching the canvas or its mount adds `check:app`. Bumping `@mog-sdk/*` adds
+`check:sdk-surface`, which re-derives the capability table in
+`docs/API-EVIDENCE.md` from the installed package rather than trusting it.
 
 `plugins/mog-canvas/ui/dist` is a gitignored build artifact that the MCP server
 serves and `check:app` drives, and it is built from `src/` as well as the

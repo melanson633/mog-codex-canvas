@@ -102,6 +102,103 @@ this project follows it closely.
   `scripts/verify.mjs` asserts both fallback paths and that the entry module's
   transformed output contains no `@mog-sdk` reference at all.
 
+## SDK surface — verified against 0.10.5, not read off a changelog
+
+Every row below was called on this machine against the installed
+`@mog-sdk/sdk` 0.10.5 on 2026-08-06. Re-run `npm run check:sdk-surface` to
+re-verify; it prints `PRESENT`/`absent` per symbol and exits non-zero if
+anything this project relies on has disappeared. **Prefer re-running it over
+trusting this table** — the script is the durable artifact, the table is a
+snapshot.
+
+### Self-introspection: stop guessing API names
+
+`docs/solutions/…/mog-sdk-node-subpath-and-proxy-introspection.md` already says
+to call `api.describe` / `api.search` instead of guessing. Concretely:
+
+| Call | What it actually returns |
+| --- | --- |
+| `api.search('used range')` | **The one to reach for.** Plain-language query → `{path, name, kind, signature, docstring}` matches. Correctly returned `ws.getUsedRange` for that query and `wb.diagnostics.checkFormulaErrors` for `'error cells'` |
+| `api.describe()` | No-arg: method-name and sub-API lists only (~3.8 KB). A map, not documentation |
+| `api.describe('ws.setFormulas')` | Per-symbol: full signature + docstring (~744 B). This is the useful form |
+| `api.guidance.explain(sym)` | Same content, and it normalizes `worksheet.` → `ws.` |
+| `api.guidance.analyze` / `.preflight` | Present — see the limit below |
+| `api.compatibility` | `byObservedPath` / `byCanonicalPath` — a rename map for migrating off moved API paths |
+| `api.types`, `api.utils`, `api.a1` | Present |
+
+**Path grammar is strict and fails silently.** `ws.setFormulas` and
+`worksheet.setFormulas` resolve; bare `setFormulas` returns `null` with no
+error. A `null` from `describe` means "bad path", not "no such API".
+
+**`guidance.preflight` is a syntax check, not a semantic guard.** It was fed a
+snippet using the nested-`font` shape of a known upstream defect and returned
+`{ ok: true, diagnostics: [] }`. It confirms the API you called exists and
+parses; it does not know whether the call will do what you meant. Do not gate
+model-written Mog code on it and call that safe.
+
+### Confirmed present
+
+- **Worksheet** — `setFormulas(range, formulas[][])`, `setCells`, `setRange`,
+  `setCell`, `getUsedRange` (returns `null` on an empty sheet), `findLastRow`,
+  `findLastColumn`, `findDataEdge`, `summarize`, `describe`, `describeRange`,
+  `toCSV`, `toJSON`, `formats`, `tables`, `layout`
+- **Workbook** — `importWarnings` (array), `undoGroup`, `captureScreenshot`,
+  `sheets`, `names`, `dispose`, `toXlsx`, `diagnostics` (below)
+
+### Corrections to what was previously assumed
+
+| Assumed | Actual |
+| --- | --- |
+| `MogSdkErrorCode` is exported | **Does not exist.** Only `MogSdkError` |
+| `wb.formats`, `wb.tables` | **Worksheet-level only** — `ws.formats`, `ws.tables` |
+
+### Upstream #328 does not reproduce on 0.10.5
+
+[#328](https://github.com/fundamental-research-labs/mog/issues/328) reports that
+a multi-row `setRange` keeps formula authorship only on the first row, so later
+rows export as frozen literals. That would hit
+[scripts/headless-edit.mjs](../scripts/headless-edit.mjs) directly, which writes
+a four-row matrix with formulas in rows 2–4. It was tested against 0.10.5 with
+that exact shape: **all formulas survived `toXlsx()` + reload**, and the values
+recalculated correctly. Either it was fixed in 0.10.5, or the report's explicit
+`"A1:C2"` range form differs from the top-left anchor form used here.
+
+The script was therefore left alone — rewriting working code around an
+unreproduced bug adds risk and buys nothing. `check:sdk-surface` asserts the
+round trip instead, so a regression is caught by a check rather than by a
+delivered workbook full of stale numbers.
+
+### `wb.diagnostics` — engine-side error checking nobody here knew existed
+
+`checkErrors`, `checkFormulaErrors`, `validateWorkbook`, `checkBlankRegions`,
+`checkExternalReferences`. Verified live: a sheet seeded with `=A1/A2` (÷0) and
+`=NOSUCHFN(1)` returned structured findings with sheet name, cell address, an
+error code, and the offending value:
+
+```json
+{ "ok": false,
+  "findings": [ { "code": "FORMULA_ERROR_VALUE", "severity": "error",
+                  "sheetName": "Sheet1", "address": "A3",
+                  "currentValue": "#DIV/0!",
+                  "message": "Formula at Sheet1!A3 evaluates to #DIV/0!." } ] }
+```
+
+`checkErrors` documents that checks lacking host support return `unsupported`
+rather than `passed`, "so the result stays honest" — the same verified/assumed
+separation this repo enforces.
+
+**This does not replace [server/value-fidelity.ts](../server/value-fidelity.ts),
+and may not even overlap it.** Only `#DIV/0!` and `#NAME?` were exercised. The
+defect the fidelity gate exists for —
+[upstream #337](https://github.com/fundamental-research-labs/mog/issues/337) —
+is precisely a case where *the engine believes the graph is clean* while cells
+carry `#CALC!`. An engine-side checker plausibly inherits that same blindness
+and reports `ok: true` on a poisoned workbook. Until someone runs
+`checkFormulaErrors` against a workbook known to carry `#CALC!` from import,
+treat these as a **complement to** the cached-`<v>` oracle, never a substitute.
+The gate compares against evidence from outside the engine; that is the whole
+reason it works.
+
 ## Historical Codex gap and current plugin status
 
 At the time of the original 2026-07-24 investigation, this project was a
