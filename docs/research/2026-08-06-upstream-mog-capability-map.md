@@ -34,10 +34,12 @@ Nine findings, ordered by how much they change what a future agent should do.
 1. **The `#CALC!` defect this repo diagnosed is already an open upstream issue —
    [#337](https://github.com/fundamental-research-labs/mog/issues/337), filed by
    this repo's own author on 2026-08-04.** [UNV→SRC via web] The upstream tracker
-   has 13 open issues, and several describe engine behavior this repo either
-   compensates for or is exposed to. **Checking that tracker is now step zero of
-   any canvas-side debugging session.** It was not previously anywhere in this
-   repo's triage path.
+   has **12 open issues**, several of which describe engine behavior this repo
+   either compensates for or is exposed to. **Checking that tracker is now step
+   zero of any canvas-side debugging session.** It was not previously anywhere in
+   this repo's triage path. *(All twelve have since been read and written up —
+   see [`docs/solutions/integration-issues/upstream-mog-open-defects-and-which-lane-they-reach.md`](../solutions/integration-issues/upstream-mog-open-defects-and-which-lane-they-reach.md)
+   and the three entries it links.)*
 
 2. **Upstream issue
    [#328](https://github.com/fundamental-research-labs/mog/issues/328) says
@@ -800,7 +802,8 @@ stay unproven until step 4 of the host test procedure passes there.**
 | # | Symptom / area | Upstream answer | Where | Confidence |
 | --- | --- | --- | --- | --- |
 | 1 | `#CALC!` across a grid whose file cached values are correct | **Open issue [#337](https://github.com/fundamental-research-labs/mog/issues/337)**, filed 2026-08-04 by this repo's author. Not fixed. Local fidelity gate remains the mitigation | tracker | [UNV→web] |
-| 2 | 77–104 s import on ~600–900 KB workbooks; tab freeze | Tracker has *"Deferred XLSX hydration traps wasm32 on formula-dense workbooks"* — same class, likely the same report | tracker | [UNV] |
+| 2 | 77–104 s import on ~600–900 KB workbooks; tab freeze | **Issue [#335](https://github.com/fundamental-research-labs/mog/issues/335)** — related but *not* the same report: it is a wasm32 memory **trap** (`RuntimeError: unreachable`) at 20.3 MB / 1.57 M cells, not a slow import. Native survives the same file at ~4.7 GB RAM | tracker | **[UNV→web]** — read in full |
+| 2b | Canvas Save silently flattens theme-linked colors to literal RGB | **Issue [#329](https://github.com/fundamental-research-labs/mog/issues/329)** (0.10.3, open). Every canvas Save is an import→export round trip, so this is live; no check here looks at colors. Not reproduced — the tracked fixture is not a specimen that would show it | tracker | **[UNV→web]** |
 | 3 | Formulas vanish from a multi-row `setRange` | **Issue [#328](https://github.com/fundamental-research-labs/mog/issues/328)**; use `setFormulas`/`setCells`. Does not reproduce at 0.10.5 in `workbooks/sample.xlsx` | tracker + local fixture | [TEST locally] |
 | 4 | Guessing SDK method names | `api.describe('ws.tables.add')`, `api.describe('type:TableOptions')` | `runtime/sdk/src/api-describe.ts` | [SRC] |
 | 5 | Office-JS-shaped generated code | `api.guidance.preflight(source)`; 16 blocking dialect entries | `runtime/sdk/src/generated/api-guidance.json` | [SRC] |
@@ -1024,8 +1027,9 @@ For any `mog-codex-canvas` problem, in order. Stop as soon as an answer is
 found.
 
 **0. Is it already known?**
-`docs/solutions/` first (15 entries, grouped by kind), then **the upstream
-tracker** (`fundamental-research-labs/mog/issues` — 13 open as of 2026-08-06),
+`docs/solutions/` first (19 entries, grouped by kind), then **the upstream
+tracker** (`fundamental-research-labs/mog/issues` — 12 open as of 2026-08-06,
+all indexed in `docs/solutions/integration-issues/upstream-mog-open-defects-and-which-lane-they-reach.md`),
 then this file. *Example: `#CALC!` across a grid → both a solution doc and issue
 #337.*
 
@@ -1140,11 +1144,14 @@ the disproven hypotheses kept visible.
    never [TEST], except the OOXML byte read of `workbooks/sample.xlsx`. Anything
    marked VERIFY in §7 stays VERIFY.
 2. **The upstream tracker was read through a web fetch, not the GitHub API.**
-   This session's GitHub tool scope covers only `melanson633/mog-codex-canvas`.
-   I confirmed issue numbers and authors for #337 and #328 and the 13-open count;
-   I did **not** open the other eleven. The "Deferred XLSX hydration traps
-   wasm32" title matches this repo's ~90 s import observation but I did not
-   confirm its number, author, or body. **Next agent: read all 13.**
+   This session's GitHub tool scope covers only `melanson633/mog-codex-canvas`,
+   so issue bodies were summarized by a fetch rather than retrieved verbatim.
+   **Resolved as far as it can be here:** all twelve open issues have now been
+   read and are written up in `docs/solutions/`. The list view reports twelve,
+   not the thirteen an earlier count suggested; the discrepancy is unexplained
+   and probably a pull request counted as an issue. Anyone with API access should
+   re-read the bodies verbatim — a fetched summary is not a quotation, and the
+   version numbers and repro details in these entries came from summaries.
 3. **Does `mog-embed.css` actually resolve through `require.resolve`?** Its
    export declares only `style` and `default` conditions. Untested.
 4. **Does the dev app still need an explicit `assets` policy at all?** The embed
@@ -1180,10 +1187,12 @@ change. Priority is value ÷ risk.
    diagnosing engine behavior, search `fundamental-research-labs/mog/issues`. Add
    the issue #337 reference to the `#CALC!` solution doc and note it is still
    open."*
-2. *"Read all 13 open upstream issues and add a `docs/solutions/` entry for every
-   one that touches a surface this repo uses (tables, setRange, names, formats,
-   error contract, XLSX writer, hydration). State for each whether it reproduces
-   here."*
+2. ~~*"Read all 12 open upstream issues and add `docs/solutions/` entries."*~~
+   **Done 2026-08-06.** Four entries plus two corrections; see the index at
+   `docs/solutions/integration-issues/upstream-mog-open-defects-and-which-lane-they-reach.md`.
+   The follow-on is narrower: *"re-read the twelve issue bodies verbatim through
+   an authenticated GitHub client and correct any version number or repro detail
+   that came from a fetched summary."*
 3. *"Correct the `dispose()` note in `server/workbook-service.ts:794-796`:
    `Workbook.dispose()` is specified as `void`; the defensive code stays, the
    framing changes. Add both dispose contracts to the SDK-gotchas solution doc."*

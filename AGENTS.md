@@ -132,6 +132,13 @@ and the containment doc above. Do not assume a POSIX shell.
 - [`docs/solutions/`](docs/solutions/) — durable learnings, one per solved
   problem, grouped by kind. Check here before re-debugging something; add to
   it after solving something non-obvious.
+- **Upstream Mog's issue tracker** —
+  [`fundamental-research-labs/mog/issues`](https://github.com/fundamental-research-labs/mog/issues).
+  Read it before diagnosing engine behavior. The `#CALC!` defect was diagnosed
+  here over several sessions and filed there; the rest of that tracker was only
+  read afterwards, and it held issues this repo was already exposed to.
+  [`docs/solutions/integration-issues/upstream-mog-open-defects-and-which-lane-they-reach.md`](docs/solutions/integration-issues/upstream-mog-open-defects-and-which-lane-they-reach.md)
+  indexes it by which lane each defect reaches.
 - [`docs/CLAUDE-CODE-PLUGIN.md`](docs/CLAUDE-CODE-PLUGIN.md) — plugin install,
   host test procedure, rollback, and the secondary Codex path's gaps.
 - [`docs/API-EVIDENCE.md`](docs/API-EVIDENCE.md) — a historical record of what
