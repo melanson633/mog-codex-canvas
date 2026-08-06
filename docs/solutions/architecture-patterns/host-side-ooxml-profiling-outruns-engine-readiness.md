@@ -51,11 +51,11 @@ same large workbook was then opened in the canvas:
 | **host-side profile** | **1 ms** | **20 ms** |
 
 The profiler used only `readZipEntries()`
-([`server/ooxml-cache.ts:30`](../../../server/ooxml-cache.ts)) plus regexes over the
+([`server/ooxml-cache.ts`](../../../server/ooxml-cache.ts)) plus regexes over the
 sheet XML it returns. No `@mog-sdk/sdk`, no engine, no WASM. That function reads a
 ZIP central directory and inflates entries with `node:zlib`; its own header comment
 describes the module as deliberately small, dependency-free, and non-writing
-([`server/ooxml-cache.ts:1-17`](../../../server/ooxml-cache.ts)).
+(the module header comment in [`server/ooxml-cache.ts`](../../../server/ooxml-cache.ts)).
 
 On the same 934,756-byte workbook, the Mog canvas console logged
 `RenderSystem: renderer became ready` at **+91,661 ms**, after a five-phase deferred
@@ -71,19 +71,26 @@ Two facts about that run matter beyond the number itself.
 
 **The host already had the bytes.** `read()` returns the full byte array and its
 content-derived revision before anything is handed to the canvas
-([`server/workbook-service.ts:385-389`](../../../server/workbook-service.ts)). During
+(`read()` in [`server/workbook-service.ts`](../../../server/workbook-service.ts)). During
 the entire ~92 s wait, the material needed to answer "what shape is this workbook"
 was sitting in host memory, unread.
 
 **The app header said `ready` for all of it.** `status` is app state
-([`src/App.tsx:29`](../../../src/App.tsx)) rendered verbatim in the header
-([`src/App.tsx:284`](../../../src/App.tsx)), fed by the adapter through
-`onStatus: setStatus` ([`src/App.tsx:154`](../../../src/App.tsx)). The adapter emits
+(the `useState('starting')` for `status` in [`src/App.tsx`](../../../src/App.tsx))
+rendered verbatim in the header (`<span className="status">{status}</span>`),
+fed by the adapter through the `onStatus: setStatus` handler passed at mount. The adapter emits
 `'ready'` immediately after the embed's mount attachment resolves —
 `await attachment.ready; host.onStatus('ready')`
-([`src/adapters/mog-embed-adapter.ts:96-97`](../../../src/adapters/mog-embed-adapter.ts)).
+(the mount path in [`src/adapters/mog-embed-adapter.ts`](../../../src/adapters/mog-embed-adapter.ts)).
 Mount resolution is not renderer readiness. The string is therefore accurate about
 the mount and wrong about the product, for a minute and a half.
+
+**This has since been fixed** (`049280f fix(adapter): stop reporting ready before
+the renderer is`). The mount now reports `'canvas mounted — renderer hydrating'`,
+and a `watchRendererReadiness` poller promotes it to renderer-ready only when
+`attachment.getStatus() === 'ready'` **and** the view answers a real query — the
+two-signal confirmation the Guidance section below asks for. The observation above
+is retained as the evidence that produced the rule, not as current behavior.
 
 That gap is a house-rules problem, not a cosmetic one. [`AGENTS.md`](../../../AGENTS.md)
 states "Never hide a failure to reduce chrome" and "Prefer a stated limitation over
@@ -97,7 +104,7 @@ Two further observations from the same session bound the scope of this doc:
 - `checkValueFidelity()` on the large workbook returned `passed` — 3,000 of 12,292
   cached formula values sampled, 0 mismatches, 2,376 ms headless. That sample size
   is well above the module's default bound, `FIDELITY_CELL_LIMIT = 500`
-  ([`server/value-fidelity.ts:73`](../../../server/value-fidelity.ts)), so the run
+  ([`server/value-fidelity.ts`](../../../server/value-fidelity.ts)), so the run
   passed an explicit `cellLimit` and was reported with `truncated: true`. The engine
   computed this workbook correctly; slow is not the same as wrong.
 - `xl/tables/table1.xml` in that workbook carries **zero** `calculatedColumnFormula`
@@ -127,7 +134,7 @@ file carries comments or threaded comments; what each formula's *text* is; what
 Excel last recorded as each formula's value; whether a table declares
 `calculatedColumnFormula` entries. All of these are literal contents of the OOXML
 parts, reachable through `readZipEntries()`
-([`server/ooxml-cache.ts:30`](../../../server/ooxml-cache.ts)) in single-digit to
+([`server/ooxml-cache.ts`](../../../server/ooxml-cache.ts)) in single-digit to
 low-tens of milliseconds on files up to ~1 MB, per the measurements above.
 
 **Only the engine can answer**: what a formula evaluates to *now*, what a cell
@@ -143,7 +150,7 @@ Anything that only needs the file's shape — a workbook picker with real dimens
 a column inventory, annotation targets, receipt or revision history, a
 "this is a 2-sheet, 6,762-row dataset with one table and 14 comments" summary —
 should render from bytes as soon as `read()` returns
-([`server/workbook-service.ts:385-389`](../../../server/workbook-service.ts)), and
+(`read()` in [`server/workbook-service.ts`](../../../server/workbook-service.ts)), and
 should not be blanked or disabled while the canvas hydrates. On the observed run
 that converts a ~92 s blank wait into a ~20 ms populated screen with a grid that
 fills in later.
@@ -152,14 +159,14 @@ fills in later.
 
 `readZipEntries()` throws on a missing end-of-central-directory record, a bad
 central-directory signature, a bad local header, and any compression method other
-than stored or deflate ([`server/ooxml-cache.ts:30-80`](../../../server/ooxml-cache.ts)).
+than stored or deflate (the `readZipEntries` body in [`server/ooxml-cache.ts`](../../../server/ooxml-cache.ts)).
 It also inflates every entry eagerly, so a profiler pays for parts it never inspects.
 That was acceptable at the sizes measured; it is an assumption, not a guarantee, at
 larger ones.
 
 Profilers must decide explicitly what a throw means. The existing precedent is
 `looksLikeWorkbook()`, which swallows the throw and returns `false`
-([`server/ooxml-cache.ts:154-161`](../../../server/ooxml-cache.ts)), and
+([`server/ooxml-cache.ts`](../../../server/ooxml-cache.ts)), and
 `checkValueFidelity()`, which maps every failure to gather evidence to `unverified`
 and never to `passed` ([`server/value-fidelity.ts`](../../../server/value-fidelity.ts)).
 Follow the second pattern: an unreadable archive means *unknown*, never *empty*.
@@ -167,8 +174,9 @@ Follow the second pattern: an unreadable archive means *unknown*, never *empty*.
 There is one hard rule attached to that. The comments on `looksLikeWorkbook()` and
 `fidelityNeedsEngine()` record that `createWorkbook()` on unopenable bytes rejects
 but leaves a native thread alive in SDK 0.10.5, which keeps the process from exiting
-([`server/ooxml-cache.ts:147-153`](../../../server/ooxml-cache.ts),
-[`server/value-fidelity.ts:85-91`](../../../server/value-fidelity.ts)). Never open the
+(the contract comments on `looksLikeWorkbook` in
+[`server/ooxml-cache.ts`](../../../server/ooxml-cache.ts) and on `fidelityNeedsEngine`
+in [`server/value-fidelity.ts`](../../../server/value-fidelity.ts)). Never open the
 engine speculatively on bytes the cheap reader rejected.
 
 ### Use the cross-sheet reference ratio as the model/dataset discriminator
@@ -188,12 +196,15 @@ ratio is 0.452 and 0.000 on the two files measured. Two points do not establish 
 threshold. Any cutoff used in code is a guess until more workbooks are profiled, and
 should be written down as one.
 
-### Say what the status word actually means
+### Say what the status word actually means — implemented
 
-If `status` is going to read `ready` while the renderer is suspended
-([`src/adapters/mog-embed-adapter.ts:96-97`](../../../src/adapters/mog-embed-adapter.ts)),
-it should say which readiness it means — `canvas mounted`, then `renderer ready` when
-the engine's own readiness signal arrives. Reporting the fast layer's success as the
+If `status` is going to read `ready` while the renderer is suspended, it should say
+which readiness it means — `canvas mounted`, then `renderer ready` when the engine's
+own readiness signal arrives. **This is now the shipped behavior**; see
+`watchRendererReadiness` in
+[`src/adapters/mog-embed-adapter.ts`](../../../src/adapters/mog-embed-adapter.ts),
+whose contract comment states that nothing there fabricates readiness. The rule
+below is what to preserve if that code is ever rewritten. Reporting the fast layer's success as the
 product's readiness is exactly what the evidence-discipline rules in
 [`AGENTS.md`](../../../AGENTS.md) exist to prevent, and it is worse here than a missing
 indicator would be, because the user has no way to tell a 92-second hydration from a
@@ -268,7 +279,7 @@ Do **not** apply this when:
   oracle; recomputing them in a second engine is a second engine.
 - The bytes did not parse. An unreadable archive is *unknown*. Report it as such,
   do not fall back to zeros, and do not hand those bytes to `createWorkbook()`
-  ([`server/ooxml-cache.ts:147-153`](../../../server/ooxml-cache.ts)).
+  (`looksLikeWorkbook` in [`server/ooxml-cache.ts`](../../../server/ooxml-cache.ts)).
 - Disk access is involved. Every read still goes through
   `server/workbook-service.ts` and its path policy — profiling is a new consumer of
   bytes the service already returns, never a new way to reach the filesystem.
@@ -334,13 +345,15 @@ ruled out as an instance of the calc-column defect without opening the engine at
 
 ### Precise wording for the readiness gap
 
-Until the status split described in Guidance exists, describe the observation this
-way rather than rounding it off:
+The status split described in Guidance now exists, so this wording is historical —
+kept because the measurement itself is still the only data point on this host, and
+because it shows how to state a readiness observation without rounding it off:
 
 > On one observed open of a 934,756-byte workbook on this Windows host, the Mog
 > renderer reported ready at +91,661 ms while the app header displayed status
 > `ready` from mount onward. `status` is set from the adapter's post-mount
-> `onStatus('ready')` (`src/adapters/mog-embed-adapter.ts:96-97`), which reflects
+> `onStatus('ready')` (the mount path in `src/adapters/mog-embed-adapter.ts`, as it
+> stood at the time of the observation), which reflects
 > mount completion rather than renderer readiness. Single run, not a benchmark.
 
 ### The two claims to keep apart

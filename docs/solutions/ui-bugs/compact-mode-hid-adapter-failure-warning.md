@@ -22,15 +22,15 @@ tags: [compact-mode, css, error-visibility, diagnostics, has-selector, side-pane
 
 The dev app's compact display mode (`?compact=1`) hid the entire footer with `.app.compact .foot { display: none; }`. That footer is the only place the adapter-failure warning renders, so compact mode silently suppressed the sole user-visible signal that the real `@mog-sdk/spreadsheet-app` canvas failed to resolve and a degraded adapter was in use.
 
-Blast radius is wider than the flag suggests: `compare.html` hardcodes the flag on every pane it creates ([compare.html:46](../../../compare.html)), so this affected all compare-view panes by default, not just people who typed `?compact=1` themselves.
+Blast radius is wider than the flag suggests: `compare.html` hardcodes the flag on every pane it creates (the `frame.src` assignment in [compare.html](../../../compare.html)), so this affected all compare-view panes by default, not just people who typed `?compact=1` themselves.
 
 ## Symptoms
 
-- **Save** and **Screenshot** render disabled with no explanation anywhere on screen. `src/App.tsx:141` derives the gate — `const canEdit = probe?.capabilities.liveCanvas ?? false;` — and both buttons are gated on it at `src/App.tsx:166` and `src/App.tsx:172`. **Verify** stays enabled (gated on `!file` at `src/App.tsx:169`), so the toolbar looks partly working rather than obviously broken.
-- The adapter badge that would otherwise flag the failure is *also* hidden in compact mode by `.app.compact .meta .badge { display: none; }` ([styles.css:201-203](../../../src/styles.css)) — so no fallback signal survives.
+- **Save** and **Screenshot** render disabled with no explanation anywhere on screen. `src/App.tsx` derives the gate — `const canEdit = probe?.capabilities.liveCanvas ?? false;` — and both buttons are gated on it (`disabled={busy || !canEdit}`). **Verify** stays enabled (gated on `!file`), so the toolbar looks partly working rather than obviously broken.
+- The adapter badge that would otherwise flag the failure is *also* hidden in compact mode by `.app.compact .meta .badge { display: none; }` (the `.app.compact` block in [styles.css](../../../src/styles.css)) — so no fallback signal survives.
 - A stub canvas in a pane a few hundred pixels tall looks like a real canvas. Compact mode is exactly the context where degradation is hardest to spot by eye: the mode that most needed the warning was the one that removed it.
 
-The warning has exactly one render site, `src/App.tsx:204-207`:
+The warning had exactly one render site, the `<footer className="foot">` in `src/App.tsx`:
 
 ```tsx
 <footer className="foot">
@@ -39,7 +39,9 @@ The warning has exactly one render site, `src/App.tsx:204-207`:
 </footer>
 ```
 
-Two children: the workbook-root path (decorative in a narrow pane) and the conditional warning (never decorative).
+Two children at the time: the workbook-root path (decorative in a narrow pane) and the conditional warning (never decorative).
+
+**That footer now hosts four children, and the extra three are all `warn-text`** — the adapter-failure warning, a presence-coordination warning, and the value-fidelity verdict. This is the fix working as designed rather than drift: each new diagnostic surface inherited the exemption by carrying the marker class, with no change to the compact-mode CSS. The rule below is what made that free.
 
 ## What Didn't Work
 
@@ -49,7 +51,7 @@ Two children: the workbook-root path (decorative in a narrow pane) and the condi
 
 **The hide was incidental, not a considered trade-off (session history).** Compact mode was built in one burst as a pane-space optimization after a 3-up vertical stack left effectively no visible grid. The footer was understood at the time as one thing — a containment-path bar — and the result summary recorded it as "the footer path bar is gone." Nothing in the record weighs what else could render there. This is the signature of the bug class: a container gets a name from its most common content, and then gets hidden by that name.
 
-**The compounding pass that should have caught it was itself degraded (session history).** `/ce-compound` ran in lightweight mode right after compact mode shipped, under context pressure, and was later described in-session as not safely completed — the resulting docs were drafted from a compaction summary rather than full evidence. That is how [multi-pane-canvas-embedding-via-url-flags.md](../design-patterns/multi-pane-canvas-embedding-via-url-flags.md) came to describe compact mode as simply "no footer," which then reads as spec to the next contributor.
+**The compounding pass that should have caught it was itself degraded (session history).** `/ce-compound` ran in lightweight mode right after compact mode shipped, under context pressure, and was later described in-session as not safely completed — the resulting docs were drafted from a compaction summary rather than full evidence. That is how [multi-pane-canvas-embedding-via-url-flags.md](../design-patterns/multi-pane-canvas-embedding-via-url-flags.md) came to describe compact mode as simply "no footer," which then reads as spec to the next contributor. (That description has since been corrected to state the exemption; the failure mode it illustrates is what matters here.)
 
 ## Solution
 
@@ -61,7 +63,7 @@ Before (`src/styles.css`, compact-mode block):
 }
 ```
 
-After ([styles.css:205-213](../../../src/styles.css)):
+After (the `.app.compact .foot` rules in [styles.css](../../../src/styles.css)):
 
 ```css
 /* Compact mode drops the workbook-root path, but never the adapter-failure
@@ -75,11 +77,11 @@ After ([styles.css:205-213](../../../src/styles.css)):
 }
 ```
 
-Two rules, not one. The naive one-rule fix (hide the non-warning children only) leaves an empty but still-painted strip at the bottom of every pane in the common no-warning case, because `.foot` carries its own box — `padding: 5px 8px` plus `border-top` means a childless flex column still consumes ~11px and draws a divider ([styles.css:165-174](../../../src/styles.css)). The second rule uses `:has()` to collapse the footer only when it hosts no `.warn-text`, preserving the original space saving.
+Two rules, not one. The naive one-rule fix (hide the non-warning children only) leaves an empty but still-painted strip at the bottom of every pane in the common no-warning case, because `.foot` carries its own box — `padding: 5px 8px` plus `border-top` means a childless flex column still consumes ~11px and draws a divider (the base `.foot` rule in [styles.css](../../../src/styles.css)). The second rule uses `:has()` to collapse the footer only when it hosts no `.warn-text`, preserving the original space saving.
 
 That saving is a measured budget worth protecting: compact mode took the visible grid from 0px to ~213px of each 302px pane in a 3-up vertical stack. Pin the viewport when regression-checking it — the pane height was observed changing under the user mid-session, so a live pane is not a stable measuring stick.
 
-**Merge state:** committed on `claude/canvas-ideation-side-panel-6747b1` as of this writing. Not yet merged to `main`.
+**Merge state:** on `main` — landed as `fix(ui): keep the adapter-failure warning visible in compact mode (#7)`. Both rules are live in `src/styles.css`.
 
 ## Why This Works
 
@@ -100,13 +102,13 @@ Check to run when adding or reviewing a density-mode rule:
 3. Ask whether any child is a **conditional** render. A `{cond && <span/>}` inside a hidden container is the signature of this bug — an element absent most of the time and load-bearing the rest of it.
 4. If yes, hide the specific decorative children and add a `:has()` guard so the container still collapses when the conditional child is absent.
 
-Give every error surface a marker class — this codebase already had `.warn-text` ([styles.css:176-178](../../../src/styles.css)) — precisely so `:not()` and `:has()` can exempt it mechanically. A marker class turns "remember not to hide the warning" into something the stylesheet enforces on its own. Apply it to any future diagnostic output (validation failures, offline banners, permission notices) so one convention covers them all.
+Give every error surface a marker class — this codebase already had `.warn-text` (defined in [styles.css](../../../src/styles.css)) — precisely so `:not()` and `:has()` can exempt it mechanically. A marker class turns "remember not to hide the warning" into something the stylesheet enforces on its own. Apply it to any future diagnostic output (validation failures, offline banners, permission notices) so one convention covers them all.
 
 The project already holds itself to the underlying standard elsewhere: when a computer-use edit silently failed mid-action, the app was judged correct precisely because it left no phantom half-edit and kept its status honest (session history). An honest status that cannot be seen fails that same standard by a different route.
 
 ## Related Issues
 
-- [multi-pane-canvas-embedding-via-url-flags.md](../design-patterns/multi-pane-canvas-embedding-via-url-flags.md) — introduced `?compact=1` and the `.app.compact` rules. **Its "no footer" description is now inaccurate** and would reintroduce this bug if followed as spec; it also lists embed-DOM selector fragility as the only chrome-hiding caveat, missing the diagnostics rule above.
+- [multi-pane-canvas-embedding-via-url-flags.md](../design-patterns/multi-pane-canvas-embedding-via-url-flags.md) — introduced `?compact=1` and the `.app.compact` rules. Its original "no footer" description would have reintroduced this bug if followed as spec; it has since been corrected to state the `.warn-text` exemption and to carry the diagnostics rule in its **When to Apply** list. The two docs now agree — check them together if either changes.
 - [file-origin-compare-page-blank-iframes.md](./file-origin-compare-page-blank-iframes.md) — sibling failure mode on the same surface: a broken canvas rendering with no visible error. Also relevant to verifying this fix, since the compare page must be served over HTTP rather than opened as `file://`.
-- `docs/ideation/2026-07-26-mog-canvas-uses-and-design-ideation.html`, idea #6 ("Chrome is already a declared API; the CSS reach-in should go to zero", 95% confidence) — queued direction to replace compact mode's CSS with the adapter's declared chrome options, and the entry carrying this bug's live-defect callout. **It would not have prevented this bug.** Those booleans (`commandBar`, `fileMenu`, `formulaBar`, `sheetTabs`, `statusBar` at [mog-embed-adapter.ts:116-123](../../../src/adapters/mog-embed-adapter.ts)) govern the *embed's* chrome; the footer is this app's own DOM. Adopting the declared API removes the fragile reach-in at [styles.css:216-218](../../../src/styles.css) and leaves the footer rules exactly as they are here.
+- `docs/ideation/2026-07-26-mog-canvas-uses-and-design-ideation.html`, idea #6 ("Chrome is already a declared API; the CSS reach-in should go to zero", 95% confidence) — queued direction to replace compact mode's CSS with the adapter's declared chrome options, and the entry carrying this bug's live-defect callout. **It would not have prevented this bug.** Those booleans (`commandBar`, `fileMenu`, `formulaBar`, `sheetTabs`, `statusBar` in the chrome options of [mog-embed-adapter.ts](../../../src/adapters/mog-embed-adapter.ts)) govern the *embed's* chrome; the footer is this app's own DOM. Adopting the declared API removes the fragile embed reach-in selectors in [styles.css](../../../src/styles.css) and leaves the footer rules exactly as they are here.
 - No GitHub issues match; related work is tracked via PRs ([melanson633/mog-codex-canvas#2](https://github.com/melanson633/mog-codex-canvas/pull/2) introduced `?compact=1`).
