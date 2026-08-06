@@ -87,6 +87,40 @@ try {
   await probe.dispose();
 }
 
+// --- behavioral: diagnostics recognize #CALC! -------------------------------
+// #CALC! is the error literal upstream #337 leaves behind, and server/
+// value-fidelity.ts exists because of it. If checkFormulaErrors ever stops
+// recognizing it, the cheapest engine-side signal for that defect is gone.
+console.log('\nbehavior: checkFormulaErrors recognizes #CALC! (upstream #337)');
+const errors = await createWorkbook();
+try {
+  const ws = errors.activeSheet;
+  await ws.setCell('A1', 1);
+  await ws.setCell('A2', '=FILTER(A1:A1,A1:A1>100)'); // empty array -> #CALC!
+  await errors.calculate?.();
+
+  const value = await ws.getValue('A2');
+  expect(value === '#CALC!', `formula yields #CALC! (got ${JSON.stringify(value)})`);
+
+  const report = await errors.diagnostics.checkFormulaErrors();
+  const sawCalc = (report.findings ?? []).some((f) => f.currentValue === '#CALC!');
+  expect(sawCalc, 'checkFormulaErrors flags #CALC! as FORMULA_ERROR_VALUE');
+
+  // The engine's own cached-value check is what value-fidelity.ts duplicates.
+  // It is `unsupported` on this host, which is why the local gate stays. If
+  // that ever changes, the gate may become retirable — surface it, don't fail.
+  const battery = await errors.diagnostics.checkErrors();
+  const stale = (battery.checks ?? []).find((c) => c.check === 'stale-cached-values');
+  if (stale && stale.status !== 'unsupported') {
+    note(`stale-cached-values is now "${stale.status}" (was unsupported). The engine may ` +
+      'now do what server/value-fidelity.ts does — re-read docs/API-EVIDENCE.md before relying on either.');
+  } else {
+    note('stale-cached-values is unsupported on this host — server/value-fidelity.ts is not redundant.');
+  }
+} finally {
+  await errors.dispose();
+}
+
 // --- behavioral: multi-row setRange keeps formula authorship ----------------
 // Upstream #328 reported that setRange drops formula authorship after the first
 // row, which would silently turn scripts/headless-edit.mjs's P&L formulas into

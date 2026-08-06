@@ -102,6 +102,22 @@ TypeScript bridge imports `@mog-sdk/sdk/node` deliberately: under `bundler`
 resolution the bare specifier types as the browser WASM build, whose
 `createWorkbook` takes bytes rather than a path.
 
+**Never guess an SDK name — ask the engine.** Its objects are proxy-backed, so
+`Object.getOwnPropertyNames` reveals nothing and plausible names are usually
+wrong (`wb.sheets.get`, `ws.structure.setColumnWidth` and a `workbook_metadata`
+tool were all invented). The SDK ships its own index:
+
+```bash
+npm run sdk:search -- "used range"     # plain-language -> ws.getUsedRange
+npm run sdk:search -- ws.setFormulas   # signature + docstring
+npm run sdk:search -- --all            # every path, for "what aren't we using?"
+```
+
+Paths need the `ws.`/`wb.` prefix; a bare name returns `null`, which reads as
+"no such API" when it means "bad path". Search matches API-ish nouns better
+than sentences. What is verified about the surface — and the traps that cost
+time — is in [`docs/API-EVIDENCE.md`](docs/API-EVIDENCE.md).
+
 ## Evidence discipline
 
 This repo separates **verified** from **assumed**, and that distinction is the

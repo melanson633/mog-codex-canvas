@@ -187,17 +187,56 @@ error code, and the offending value:
 rather than `passed`, "so the result stays honest" — the same verified/assumed
 separation this repo enforces.
 
-**This does not replace [server/value-fidelity.ts](../server/value-fidelity.ts),
-and may not even overlap it.** Only `#DIV/0!` and `#NAME?` were exercised. The
-defect the fidelity gate exists for —
-[upstream #337](https://github.com/fundamental-research-labs/mog/issues/337) —
-is precisely a case where *the engine believes the graph is clean* while cells
-carry `#CALC!`. An engine-side checker plausibly inherits that same blindness
-and reports `ok: true` on a poisoned workbook. Until someone runs
-`checkFormulaErrors` against a workbook known to carry `#CALC!` from import,
-treat these as a **complement to** the cached-`<v>` oracle, never a substitute.
-The gate compares against evidence from outside the engine; that is the whole
-reason it works.
+**`#CALC!` is detected — the earlier doubt was wrong.** Three formulas producing
+`#CALC!` (`FILTER` over a predicate matching nothing, and a `TRANSPOSE` of one)
+were each flagged `FORMULA_ERROR_VALUE` with `currentValue: "#CALC!"`. The check
+reads each cell's *current value*, so it does not depend on the dependency graph
+being dirty — which is exactly the condition
+[#337](https://github.com/fundamental-research-labs/mog/issues/337) creates. On a
+poisoned import the cells literally hold `#CALC!`, so this should flag them.
+Unverified against the real reproducer: `heritage_cash_reporting_2026-08-02.xlsx`
+is no longer in `workbooks/`, and the defect is size- and mix-dependent, so a
+synthetic file will not stand in for it.
+
+**But the engine's own equivalent of the fidelity gate does not run here.**
+`checkErrors()` on an imported file reports its full battery, and two checks come
+back `unsupported` rather than `passed`:
+
+| check | status |
+| --- | --- |
+| `formula-error-values` | passed |
+| `external-references` | passed |
+| `dirty-state` | passed |
+| `openxml-loadability` | **unsupported** |
+| `stale-cached-values` | **unsupported** |
+
+`stale-cached-values` is precisely what
+[server/value-fidelity.ts](../server/value-fidelity.ts) does — compare the
+engine's computed values against the cached `<v>` the file carries. It is
+**unsupported in this host**, so the local gate is not redundant and cannot be
+retired in favour of it. That settles the open question: keep the gate.
+
+The useful shape is therefore *both* — `checkFormulaErrors` is a cheap
+engine-side signal that could run at **open** time, where the current gate only
+acts at **save** time. It cannot replace the gate as a refusal criterion,
+because it flags any error value including ones legitimately present in the
+source file; the gate refuses only the high-signal shape where the file recorded
+a non-error and the engine reports an error.
+
+### Other surfaces worth knowing, verified the same way
+
+`npm run sdk:search -- --all` enumerates 237 paths; this project calls a small
+fraction. Most of the remainder is irrelevant here (slicers, sparklines, text
+effects). These are not:
+
+| Surface | Verified behavior | Why it matters here |
+| --- | --- | --- |
+| `wb.createCheckpoint` / `restoreCheckpoint` / `listCheckpoints` | Works. `createCheckpoint('label')` returns an id; after clobbering a cell, `restoreCheckpoint(id)` restored the original value | In-engine rollback for multi-step agent edits, distinct from the service layer's `.bak` files |
+| `wb.calculationState`, `wb.isDirty`, `wb.markClean` | `"done"` / `false` on a fresh import | The surfaces that would *report* #337's "graph marked clean" state |
+| `wb.getCalculationMode` / `setCalculationMode` | `'auto'` by default; `'manual'` sticks. A dependent formula still evaluated eagerly, so manual mode did not defer this path | Hypothesis 3 in the #337 write-up said no calculation-mode option exists. That remains true of `SpreadsheetOpenWorkbookRequest`; it is **not** true of the workbook object post-open |
+| `wb.executeCode` | Present, not exercised | An agent-reachable code-execution surface. Worth knowing it exists before something enables it |
+| `wb.security`, `wb.makePrincipal`, `wb.activePrincipal` | Present; `securityActive` is `false` | An entire principal model this project does not use |
+| `createWorkbook(path, { readOnly: true })` | **Ignored** — `wb.readOnly` stayed `false` | There is no read-only open via that option shape, so "viewing is safe, saving is not" cannot be enforced at open time this way |
 
 ## Historical Codex gap and current plugin status
 
