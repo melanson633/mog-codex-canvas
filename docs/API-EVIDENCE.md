@@ -194,9 +194,21 @@ reads each cell's *current value*, so it does not depend on the dependency graph
 being dirty — which is exactly the condition
 [#337](https://github.com/fundamental-research-labs/mog/issues/337) creates. On a
 poisoned import the cells literally hold `#CALC!`, so this should flag them.
-Unverified against the real reproducer: `heritage_cash_reporting_2026-08-02.xlsx`
-is no longer in `workbooks/`, and the defect is size- and mix-dependent, so a
-synthetic file will not stand in for it.
+
+**Confirmed on the real reproducer, 2026-08-06.** Run against
+`v2_heritage_cash_reporting_2026-08-02.xlsx` (a later build of the file named in
+the [#337 solutions entry](solutions/integration-issues/mog-sdk-xlsx-table-calc-column-import-yields-calc-error.md);
+it reproduces identically): **10,798 findings** across 6 sheets in **15.4 s**,
+`truncated: false`, and the per-column counts match that entry's analysis
+exactly. A scan narrowed to the known-bad column returned in **0.14 s** — against
+a 117–187 s import. Detection is not what costs.
+
+**Pass an explicit `limit`.** With no options, `checkFormulaErrors()` stops at
+**1,000 findings** and returns `truncated: true`. On that file all 1,000 came
+from one sheet and the worst-affected sheet was never reached. `ok: false` is
+still correct, but a caller that reads the *findings list* to decide which cells
+are bad gets a badly wrong answer. The options type is
+`WorkbookValidationScanOptions` — `{ limit?, sheetId?, sheetName?, range?, ranges? }`.
 
 **But the engine's own equivalent of the fidelity gate does not run here.**
 `checkErrors()` on an imported file reports its full battery, and two checks come
@@ -214,7 +226,9 @@ back `unsupported` rather than `passed`:
 [server/value-fidelity.ts](../server/value-fidelity.ts) does — compare the
 engine's computed values against the cached `<v>` the file carries. It is
 **unsupported in this host**, so the local gate is not redundant and cannot be
-retired in favour of it. That settles the open question: keep the gate.
+retired in favour of it. That settles the open question: keep the gate. It is
+still `unsupported` on the real reproducer above — a large, genuinely poisoned
+import, which is the strongest case it would ever have to answer.
 
 The useful shape is therefore *both* — `checkFormulaErrors` is a cheap
 engine-side signal that could run at **open** time, where the current gate only

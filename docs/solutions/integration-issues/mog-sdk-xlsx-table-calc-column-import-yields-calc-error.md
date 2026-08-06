@@ -117,6 +117,36 @@ The verdict surfaces as warn-text in both UIs — [src/App.tsx:313-321](../../..
 
 The point still stands as originally written: the canvas must not render a plausible-looking grid full of `#CALC!` with a live Save button next to it. The grid still renders — the SDK defect is upstream — but the Save no longer lands.
 
+### The engine can detect this itself — verified on the reproducer, 2026-08-06
+
+`wb.diagnostics.checkFormulaErrors()` finds the defect. Measured against `v2_heritage_cash_reporting_2026-08-02.xlsx` (823,803 bytes — a later, larger build than the 640,154-byte file above; it reproduces identically):
+
+| Scan | Time | Findings |
+| --- | --- | --- |
+| Whole workbook, `{ limit: 50000 }` | 15.4 s | 10,798 across 6 sheets, `truncated: false` |
+| `{ sheetName: 'TxnLog', limit: 50000 }` | 12.9 s | 8,342 |
+| `{ sheetName: 'TxnLog', range: 'Q1:Q4200', limit: 50000 }` | **0.14 s** | 4,167 |
+
+The counts corroborate the column analysis above exactly: `TxnLog` reports **4,175** `#CALC!` — 4,167 from `EffectiveCategory` plus the **8** `DefaultCategory` rows — and **4,167** `#VALUE!` from `UniqueTxnKey`.
+
+Three things this changes:
+
+- **The blast radius is wider than recorded.** `Weekly Summary` was not the only casualty: `Monthly Summary` (143), `Checks - Internal` (49), and `Service Finance` (14) also carry `#CALC!`. The original investigation looked where the failure was visible.
+- **A targeted scan is effectively free.** 0.14 s against a known column, versus a 117–187 s import (two runs on this host; treat as variance, not a benchmark — both exceed the 77–91 s recorded earlier for the smaller file). Detection is not what costs; loading is.
+- **The default finding cap hides the worst of it.** With no `limit`, the scan returns 1,000 findings, `truncated: true`, and every one of them comes from `Weekly Summary` — `TxnLog` is never reached. `ok: false` is still correct, but a caller that reads the findings list to decide *which* cells are bad gets a badly wrong answer. Always pass an explicit `limit`.
+
+**This does not retire [server/value-fidelity.ts](../../../server/value-fidelity.ts).** On this same file, `checkErrors()` reports `stale-cached-values` as **`unsupported`** — that check is the engine's own version of the cached-`<v>` comparison, and it does not run in this host. The two also answer different questions: `checkFormulaErrors` flags *any* error value, including ones legitimately present in a source file, so it cannot be a refusal criterion. The gate refuses only the high-signal shape where the file recorded a non-error and the engine reports an error.
+
+The useful shape is both, at different moments: `checkFormulaErrors` is cheap enough to run at **open** time as a warning, where the gate acts at **save** time as a refusal.
+
+### `importWarnings` names dropped parts that are plausibly the mechanism
+
+`wb.importWarnings` is non-empty on this file — two `import_error` entries, `severity: "warning"`, `recoverability: "partiallySupported"`, reporting *"Dropped XLSX import data with no modeled ParseOutput owner"*. The named parts include the **calculation chain cache** and **table XML passthrough package parts**.
+
+That is suggestive rather than proven, and it should be labelled that way: the defect is in *table calculated columns*, and the importer is reporting that it dropped both the table XML passthrough and the calculation chain. A dropped calculation chain would also explain hypothesis 4 — `recalculateAll()` returning in 0 ms because the graph has no chain to walk and believes itself settled.
+
+Nothing here confirms causation. But `importWarnings` was never checked during the original investigation, it is free, and it fires on this file. **Read it before forming a hypothesis next time.**
+
 ## Why This Works
 
 The guard works because the workbook ships its own answer key. Excel writes a cached `<v>` alongside every formula it evaluates. That gives a cheap, local, high-signal oracle: any formula cell where the engine disagrees with Excel's cached value is either an import defect or a deliberate recalculation — and at open time, before any user edit, it can only be the former. No knowledge of Mog's internals is required, and the check does not depend on recognizing `#CALC!` specifically; it catches any class of silent import divergence, including ones not yet seen.
