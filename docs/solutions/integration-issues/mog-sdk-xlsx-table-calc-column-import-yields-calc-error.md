@@ -147,6 +147,40 @@ That is suggestive rather than proven, and it should be labelled that way: the d
 
 Nothing here confirms causation. But `importWarnings` was never checked during the original investigation, it is free, and it fires on this file. **Read it before forming a hypothesis next time.**
 
+### Can the engine repair it in memory? No — four candidates, all fail
+
+Detection being cheap raises the obvious follow-up: once the damage is found, can the engine be told to redo the work? `npm run sdk:search` surfaced four candidates in about a minute. Every one was run against the reproducer, measuring the `TxnLog!Q` error count before and after. **It never moved off 4,167.**
+
+| Candidate | Result |
+| --- | --- |
+| `ws.calculate(true)` (`markAllDirty`) | returned in **0.0 s**, no change |
+| `wb.calculate()` | `recomputedCount: 0`, `iterations: 0`, no change |
+| `ws.tables.convertToRange('TxnLog')` | reported **applied**, no change — see below |
+| `ws.tables.setCalculatedColumn(...)` | **hangs**, see below |
+
+The first two are the sharpest result. `ws.calculate(markAllDirty = true)` is documented as marking *every* formula cell on the sheet dirty before recalculating — the direct counter to hypothesis 4's "the engine believes the graph is already clean." It returns instantly and recomputes nothing, and a workbook-wide `calculate()` then reports `recomputedCount: 0`. So the finding is stronger than originally recorded: the graph is not merely *marked* clean, it **cannot be dirtied** through the public calculation API. There is no in-memory repair path.
+
+That is the load-bearing conclusion for this repo. The engine can find this damage in seconds and cannot undo it at all, so the byte-first lane and the save-time fidelity gate are not a stopgap pending a better fix — they are the only defenses available.
+
+### Two further SDK defects found while probing, neither reported upstream
+
+Checked with `gh issue list --repo fundamental-research-labs/mog --state all` against `setCalculatedColumn`, `convertToRange`, `structured reference`, and `calculated column hang`: **#337 is the only matching issue, and neither of these is filed.** (State the search you ran, not "no issues exist" — the earlier version of this entry asserted the latter and was wrong.)
+
+**1. `convertToRange` reports success without rewriting structured references.** Its docstring promises that "structured references that point at the converted table are rewritten to A1 references where the compute engine can resolve them." On this file it returned:
+
+```json
+{ "kind": "tableConvertToRange", "status": "applied",
+  "effects": [ { "type": "removedObject", "objectType": "table", "name": "TxnLog",
+                 "range": "A1:T4168", "details": { "affectedFormulaCount": 0 } } ],
+  "diagnostics": [] }
+```
+
+`affectedFormulaCount: 0` and no diagnostics — while 4,167 formulas in the table still read `=IF(TxnLog[[#This Row],[CategoryOverride]]...` afterwards. The table was removed and every reference to it was left dangling. The `where the compute engine can resolve them` hedge arguably permits the no-op; **reporting `applied` with zero diagnostics does not**, because the caller has no way to learn the conversion was hollow. This is the same failure shape as [the redaction guards](../security-issues/redaction-guards-fail-by-misalignment-not-by-logic.md): correct in logic, silent about coverage.
+
+**2. `setCalculatedColumn` hangs on a large table.** Re-authoring `TxnLog` column 16 with the formula the engine already holds does not return. First observed run: **>3 hours of CPU and 2.3 GB resident**, killed. Reproduced under a bound: killed at a 300 s budget having produced nothing after a 123 s import. Do not call it on a table of this size (4,167 rows) without an out-of-process timeout.
+
+**Probe these out-of-process.** Both defects block inside a native N-API call, which blocks the event loop, so a `Promise.race` timeout never fires — the timer cannot run. A hard budget has to be a separate process and an OS-level kill. Any future probe of a suspect SDK call should be structured that way, and should log with `appendFileSync` rather than `console.log`: buffered stdout from a process that never exits tells you nothing, which is how the first run stayed opaque for three hours.
+
 ## Why This Works
 
 The guard works because the workbook ships its own answer key. Excel writes a cached `<v>` alongside every formula it evaluates. That gives a cheap, local, high-signal oracle: any formula cell where the engine disagrees with Excel's cached value is either an import defect or a deliberate recalculation — and at open time, before any user edit, it can only be the former. No knowledge of Mog's internals is required, and the check does not depend on recognizing `#CALC!` specifically; it catches any class of silent import divergence, including ones not yet seen.
