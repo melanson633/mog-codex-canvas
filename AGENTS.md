@@ -118,6 +118,20 @@ Paths need the `ws.`/`wb.` prefix; a bare name returns `null`, which reads as
 than sentences. What is verified about the surface — and the traps that cost
 time — is in [`docs/API-EVIDENCE.md`](docs/API-EVIDENCE.md).
 
+**Search for the remedy, not just the name.** When a defect is understood, ask
+the engine whether it can undo it before writing a workaround. Searching
+`"recalculate"`, `"calculated column"`, and `"structured reference"` surfaced
+three candidate repairs for the `#CALC!` import defect in about a minute,
+including a `markAllDirty` flag that is documented as the direct counter to the
+condition that defect creates. Diagnosis is the natural thing to search for and
+it is only half the surface.
+
+**Bounded checks stop at the first N in scan order — they do not sample.** Pass
+an explicit `limit`, read `truncated` before `findings`, and never treat a
+bounded pass as a statement about the whole file. Spreadsheet damage clusters by
+column, so a prefix misses it systematically rather than unluckily:
+[`docs/solutions/design-patterns/bounded-checks-are-prefixes-not-samples.md`](docs/solutions/design-patterns/bounded-checks-are-prefixes-not-samples.md).
+
 ## Evidence discipline
 
 This repo separates **verified** from **assumed**, and that distinction is the
