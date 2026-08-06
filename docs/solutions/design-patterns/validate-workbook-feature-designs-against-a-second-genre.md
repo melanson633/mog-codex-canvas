@@ -77,7 +77,8 @@ wording, retained here because the failure mode is the point of this doc and a
 silently corrected claim teaches nothing.
 
 The repo's default state makes this failure mode structural rather than careless.
-[`AGENTS.md:64-66`](../../../AGENTS.md) records that `workbooks/` is a gitignored live
+The **`workbooks/` is the only readable/writable directory** invariant in
+[`AGENTS.md`](../../../AGENTS.md) records that `workbooks/` is a gitignored live
 sandbox and `workbooks/sample.xlsx` is *the one tracked fixture*. Exactly one workbook
 is permanently available to any contributor; real second specimens exist only
 transiently in a developer's sandbox and cannot be committed. Nothing in the setup

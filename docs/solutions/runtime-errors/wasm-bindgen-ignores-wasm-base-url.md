@@ -33,13 +33,13 @@ A Vite middleware plugin (`server/mog-assets.ts`) serves the wasm and fonts stra
 1. the policy shape (`/mog/...` per `assets.wasmBaseUrl`), and
 2. the bundle-relative shape (`/node_modules/.vite/deps/compute_core_wasm_bg.wasm`).
 
-`scripts/verify.mjs` asserts both routes return `application/wasm` (41,303,291 bytes), so a regression fails loudly. An earlier asset-copy approach (a sync script copying into a public asset directory — both since deleted) handled shape 1 only and could not fix the self-relative fetch; it was deleted when the middleware replaced it.
+`scripts/verify.mjs` HEADs both routes and asserts `200` with `content-type: application/wasm`, so the SPA-fallback regression — an HTML body under a 200 — fails loudly. Note what it does *not* assert: the byte length is reported from `content-length` in the check's detail line but never compared to an expected value (~41.3 MB at the time of writing). A route that returned a truncated or wrong `.wasm` with the right content type would pass. That is deliberate — pinning the size would break on every SDK upgrade — but it means this check catches *mis-routing*, not *mis-serving*. An earlier asset-copy approach (a sync script copying into a public asset directory — both since deleted) handled shape 1 only and could not fix the self-relative fetch; it was deleted when the middleware replaced it.
 
 ## Prevention
 
-- Any host serving `@mog-sdk/spreadsheet-app` (static build, MCP asset host, other server) must replicate both routes or it will silently regress with the same magic-word error. The MCP asset host in this repo already does.
+- Any host serving `@mog-sdk/spreadsheet-app` (static build, MCP asset host, other server) must replicate both routes or it will silently regress with the same magic-word error. The MCP asset host in this repo already does — `server/mcp/asset-host.ts` carries an explicit special case for *any* path ending in `/compute_core_wasm_bg.wasm`, which is the more robust form of the rule: match on the filename, not on the directory the bundler happened to choose.
 - When a WASM engine dies at instantiate with `3c 21 64 6f` / `3c 68 74 6d`, the request got HTML — check what URL was actually fetched (network capture), not what the policy says should be fetched.
 
 ## Related Issues
 
-- docs/solutions/ui-bugs/file-origin-compare-page-blank-iframes.md — "use the dev server" works because of this middleware
+- [file-origin-compare-page-blank-iframes.md](../ui-bugs/file-origin-compare-page-blank-iframes.md) — "use the dev server" works because of this middleware

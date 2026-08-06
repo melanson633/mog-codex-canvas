@@ -30,7 +30,13 @@ The three-state judgment of Value Fidelity for a specific set of workbook bytes:
 
 The third state is load-bearing and never collapses into the first. Absent or unreadable evidence — no recorded results to compare against, bytes the engine will not open, a sheet it cannot resolve — yields *unverified*, not agreement. Only a disagreement the check actually observed refuses a save; an unverified save is permitted to proceed, because refusing on missing evidence would turn a gap in knowledge into lost work. It must, however, be reported as unverified wherever it is shown, since a reader who sees no warning will assume the stronger claim. A refused save preserves its attempted bytes separately rather than discarding them, as a conflicting save does.
 
-The verdict is scoped to exact bytes, so it travels with a Workbook Revision rather than with a file or a Workbook Session. It is also a sampled judgment over a bounded number of formulas, and reports when the file carried more than it examined — agreement is evidence, not proof.
+The verdict is scoped to exact bytes, so it travels with a Workbook Revision rather than with a file or a Workbook Session. It is also a Bounded Check rather than a sample, and reports when the file carried more than it examined — agreement is evidence, not proof.
+
+### Bounded Check
+
+A check that stops after a fixed number of items **in scan order**, so what it examined is a prefix of the file and not a sample of it.
+
+The distinction is load-bearing because spreadsheet damage clusters by column and by sheet — a broken calculated column fails in every row of one column, a broken import fails on the sheets using that feature. A random draw of the same size would almost certainly intersect such a cluster; a prefix either lands on it or is blind to it, and nothing in the result says which. A Bounded Check is therefore sound as a refusal gate, since a pervasively broken engine fails within any prefix, and unsound as a certificate: passing says nothing about what went unexamined. Widening the bound buys a longer prefix, never a sample. Anything that needs file-level confidence must change the sampling strategy or report per-item verdicts instead — and any bounded result must state what it did not examine, since unexamined is not the same as clean.
 
 ## Workbook profiling
 

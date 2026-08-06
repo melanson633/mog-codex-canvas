@@ -22,7 +22,7 @@ The dev app showed one workbook at a time; showing a progression (original → r
 
 Compose the existing app instead of forking it. Three small pieces (shipped in [melanson633/mog-codex-canvas#2](https://github.com/melanson633/mog-codex-canvas/pull/2)):
 
-1. **`?wb=<name>`** — pins the app's initial workbook. Validated against the served file list; unknown names fall back to the default ([App.tsx:31-33](../../../src/App.tsx)).
+1. **`?wb=<name>`** — pins the app's initial workbook. Validated against the served file list; unknown names fall back to the default (the `?wb` lookup in [App.tsx](../../../src/App.tsx)).
 2. **`?compact=1`** — slims chrome for small panes: one-row header, a footer reduced to its decorative children, and the embed's ribbon and status bar hidden by CSS ([styles.css](../../../src/styles.css), `.app.compact` rules). The formula bar and sheet tabs stay so it still reads as a spreadsheet. The footer hides the workbook-root path and collapses entirely via `:has()` when empty, but the adapter-failure warning is exempt and still renders — an earlier version hid the whole footer and suppressed that warning ([compact-mode-hid-adapter-failure-warning.md](../ui-bugs/compact-mode-hid-adapter-failure-warning.md)).
 3. **`compare.html`** — a static shell of 2-3 iframes, each loading `/?compact=1&wb=<file>`; `left`/`mid`/`right` params pick the files, `layout=vertical` stacks them. (The `mid` param and a min-2-panes fallback were a second iteration, added when 3-up vertical was requested — leave room for N panes in the param scheme up front.)
 
