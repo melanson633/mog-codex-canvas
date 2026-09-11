@@ -17,3 +17,7 @@ workbooks/**/*.conflict-*.xlsx
 
 # Flight-recorder evidence (immutable save receipts) generated at runtime.
 workbooks/.audit/
+
+# Codex Cloud proof receipts are generated artifacts; the workbook, screenshot,
+# and compact result file are intentionally reviewable in the task diff.
+artifacts/codex-cloud/.audit/
