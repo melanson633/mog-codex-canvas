@@ -25,6 +25,7 @@ import {
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { WorkbookError, type WorkbookService } from '../workbook-service.ts';
+import { createAnalystTools, analystRequest } from '../analyst-tools.ts';
 
 export const UI_RESOURCE_URI = 'ui://mog-canvas/canvas.html';
 
@@ -66,6 +67,13 @@ function guarded<Args extends unknown[]>(
 export function createMogCanvasServer(options: MogCanvasServerOptions): McpServer {
   const { service, assetOrigin } = options;
   const server = new McpServer({ name: 'mog-canvas', version: options.version ?? '0.1.0' });
+  const analyst = createAnalystTools(service);
+  server.registerTool('analyze_financial_workbook', {
+    title: 'Financial workbench',
+    description: 'Saved-revision financial analysis: compact context, explain a cell, formula review, explicit range reconciliation, or disposable numeric sensitivity. Returns exact sources and coverage limits. Scenarios never save. Formula anomalies are review leads. Personal-data guards cannot be bypassed. Unsaved canvas edits are excluded.',
+    inputSchema: { request: analystRequest },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+  }, guarded(async ({ request }) => ok({ ...await analyst(request) })));
 
   // The last context epoch each canvas session reported. Session teardown may
   // clear only the context its own canvas owns — a blanket clear would erase

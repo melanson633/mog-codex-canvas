@@ -30,5 +30,6 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 32_000,
+    rollupOptions: { input: { canvas: resolve(import.meta.dirname, 'index.html'), analyst: resolve(import.meta.dirname, 'analyst.html') } },
   },
 });

@@ -34,6 +34,8 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
+import { createAnalystTools } from './analyst-tools.ts';
+import { ensureConsultantExample } from './consultant-example.ts';
 import {
   WorkbookError,
   createWorkbookService,
@@ -95,6 +97,7 @@ export type BridgeHandler = (
  */
 export function createBridgeHandler(options: FileBridgeOptions): BridgeHandler {
   const service = createWorkbookService({ root: options.root });
+  const analyst = createAnalystTools(service);
 
   return async (req, res, next) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
@@ -102,6 +105,19 @@ export function createBridgeHandler(options: FileBridgeOptions): BridgeHandler {
     const name = url.searchParams.get('path');
 
     try {
+      if (url.pathname === '/api/analyst' && req.method === 'POST') {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        for await (const chunk of req) {
+          size += chunk.length;
+          if (size > 16_384) return sendJson(res, 413, { message: 'Analysis request exceeds 16 KB' });
+          chunks.push(Buffer.from(chunk));
+        }
+        return sendJson(res, 200, await analyst(JSON.parse(Buffer.concat(chunks).toString('utf8'))));
+      }
+      if (url.pathname === '/api/analyst/example' && req.method === 'POST') {
+        return sendJson(res, 200, await ensureConsultantExample(service));
+      }
       if (url.pathname === '/api/config' && req.method === 'GET') {
         return sendJson(res, 200, { root: service.root, files: await service.list() });
       }

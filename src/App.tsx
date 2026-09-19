@@ -53,6 +53,11 @@ export function App() {
         // ?wb=<name> pins the initial workbook (used by compare.html panes).
         const wanted = new URLSearchParams(window.location.search).get('wb');
         const pinned = wanted && next.files.some((f) => f.name === wanted) ? wanted : null;
+        if (wanted && !pinned) {
+          setError('The requested workbook is not listed in this workspace. Choose a listed workbook.');
+          setStatus('workbook unavailable');
+          return;
+        }
         setFile((current) => current ?? pinned ?? next.files[0]?.name ?? null);
         if (next.files.length === 0) setStatus('no workbooks found');
       })
@@ -269,6 +274,7 @@ export function App() {
   const canEdit = probe?.capabilities.liveCanvas ?? false;
   // ?compact=1 slims the chrome for multi-pane embedding (compare.html).
   const compact = new URLSearchParams(window.location.search).get('compact') === '1';
+  const embedded = new URLSearchParams(window.location.search).get('embedded') === '1';
 
   return (
     <div className={compact ? 'app compact' : 'app'}>
@@ -278,7 +284,7 @@ export function App() {
             className="picker"
             value={file ?? ''}
             onChange={(event) => setFile(event.target.value || null)}
-            disabled={!config || config.files.length === 0}
+            disabled={embedded || !config || config.files.length === 0}
           >
             {config?.files.length === 0 && <option value="">no .xlsx in workbook root</option>}
             {config?.files.map((entry) => (
@@ -390,6 +396,7 @@ export function App() {
       )}
 
       <footer className="foot">
+        <a href={`/analyst.html${file ? `?wb=${encodeURIComponent(file)}` : ''}`} target="_blank" rel="noreferrer">Financial workbench ↗</a>
         <span>{config ? config.root : '…'}</span>
         {probe && !probe.available && <span className="warn-text">{probe.detail}</span>}
         {/* warn-text: while presence reporting is unhealthy, agents are blind
