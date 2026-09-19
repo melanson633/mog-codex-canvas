@@ -1,5 +1,8 @@
 # Consultant release
 
+Historical release record. The current deployment and final verification are in
+[Decision desk release](DECISION-DESK-RELEASE.md).
+
 The six selected additions and the ten-option research ranking are recorded in
 [the implementation plan](plans/2026-09-18-consultant-workbench.md). Usage and
 calculation limits are in [the workbench guide](CONSULTANT-WORKBENCH.md).

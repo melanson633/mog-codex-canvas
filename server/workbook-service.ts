@@ -21,7 +21,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { revisionOf } from './workbook-revision.ts';
-import { copyFile, open, readFile, readdir, rename, rm, stat } from 'node:fs/promises';
+import { copyFile, link, open, readFile, readdir, rename, rm, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import {
   WORKBOOK_EXTENSION,
@@ -265,6 +265,8 @@ export interface ReplaceResult {
 }
 
 export interface ReplaceOptions {
+  /** Atomically create the target; never replace an entry created by another process. */
+  readonly exclusive?: boolean;
   /** Copy the version being replaced to `<file>.bak` before promoting the new one. */
   readonly backup: boolean;
   /**
@@ -292,7 +294,7 @@ let stagedCount = 0;
 export async function replaceFile(
   file: string,
   bytes: Buffer,
-  { backup, promote = rename }: ReplaceOptions,
+  { backup, promote = rename, exclusive = false }: ReplaceOptions,
 ): Promise<ReplaceResult> {
   const staged = `${file}.${process.pid}.${stagedCount++}.staged`;
   const handle = await open(staged, 'wx');
@@ -305,6 +307,14 @@ export async function replaceFile(
 
   const existed = (await stat(file).catch(() => null)) !== null;
   try {
+    if (exclusive) {
+      // Same-volume hard-link creation is atomic and refuses an existing name,
+      // including case aliases on Windows. A check followed by rename is not.
+      await link(staged, file);
+      // The workbook is committed. Cleanup failure must not report a failed save.
+      await rm(staged, { force: true }).catch(() => undefined);
+      return { file, bytes: bytes.byteLength, backup: null };
+    }
     const previous = backup && existed ? `${file}.bak` : null;
     if (previous) {
       // Clear the backup path before copying onto it. It is derived from the
@@ -318,6 +328,9 @@ export async function replaceFile(
     return { file, bytes: bytes.byteLength, backup: previous };
   } catch (error) {
     await rm(staged, { force: true });
+    if (exclusive && (error as NodeJS.ErrnoException).code === 'EEXIST') {
+      throw new WorkbookError('revision-conflict', `${basename(file)} already exists. Nothing was overwritten.`, { file: basename(file), preserved: true });
+    }
     const present = (await stat(file).catch(() => null)) !== null;
     // basename only: this error travels out through the bridge and MCP tools,
     // which never disclose absolute paths.
@@ -340,6 +353,9 @@ export interface WorkbookService {
   readonly root: string;
 
   list(): Promise<WorkbookEntry[]>;
+
+  /** Create a blank workbook without replacing an existing file. */
+  createBlank(name: string): Promise<{ name: string; revision: string }>;
 
   /** Read current bytes without creating a session (dev-bridge GET). */
   read(name: string): Promise<{ bytes: Uint8Array; revision: string }>;
@@ -812,7 +828,7 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
         await staleRevision(beforeRevision ?? 'absent');
       }
 
-      const saved = await replaceFile(file, Buffer.from(bytes), { backup: true });
+      const saved = await replaceFile(file, Buffer.from(bytes), { backup: true, exclusive: expectedRevision === 'absent' });
 
       const receipt: SaveReceipt = {
         schemaVersion: 1,
@@ -926,6 +942,33 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
   return {
     root,
     list,
+    async createBlank(requestedName) {
+      if (typeof requestedName !== 'string' || requestedName.length > 120 ||
+          requestedName !== requestedName.trim() || /[<>:"/\\|?*\u0000-\u001f]/.test(requestedName)) {
+        throw new WorkbookError('invalid-path', 'Use a workbook name of 1–120 characters without path separators or reserved characters.');
+      }
+      const stem = requestedName.replace(/\.xlsx$/i, '');
+      if (!stem || /^[.]/.test(stem) || /[. ]$/.test(stem) ||
+          /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(stem)) {
+        throw new WorkbookError('invalid-path', 'Choose a valid workbook name, without leading dots or a reserved Windows name.');
+      }
+      const name = `${stem}.xlsx`;
+      const file = await policy(() => resolveSaveTarget(root, name, 'workbook'));
+      if (await stat(file).catch(() => null)) {
+        throw new WorkbookError('revision-conflict', `${name} already exists. Choose another name; nothing was overwritten.`);
+      }
+      const { createWorkbook } = await import('@mog-sdk/sdk/node');
+      const workbook = await createWorkbook();
+      let bytes: Uint8Array;
+      try {
+        await workbook.sheets.rename(0, 'Sheet1');
+        bytes = await workbook.toXlsx();
+      } finally { await workbook.dispose(); }
+      const saved = await save(name, bytes, 'absent', {
+        lane: 'canvas', actor: { kind: 'human', id: 'dev-canvas' }, intent: 'Create blank workbook',
+      });
+      return { name: saved.name, revision: saved.revision };
+    },
     read,
     profile,
     readRange,

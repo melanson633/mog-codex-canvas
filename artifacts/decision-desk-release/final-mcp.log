@@ -1,0 +1,20 @@
+
+> mog-codex-live-xlsx@0.1.0 check:mcp
+> node scripts/mcp-check.mjs
+
+NOTE  ui bundle is stale — built from inputs af99f714c8ef…, sources now hash c6b83733f2ef…; run npm run build:mcp-app
+PASS  server starts and completes initialize over stdio — server mog-canvas@0.1.0
+PASS  ui:// resource is listed with MCP Apps metadata — csp origin http://127.0.0.1:50347
+PASS  resources/read returns the bootstrap document — 344 chars
+PASS  asset host serves the production bundle at the declared origin — js + css served, traversal refused
+PASS  bundled wasm is served as application/wasm — compute_core_wasm_bg-CEDeWido.wasm (41303291 bytes)
+PASS  tools/list exposes the workbook surface — analyze_financial_workbook, brief_workbook, close_workbook_session, describe_sheet_data, fetch_workbook_bytes, get_canvas_context, get_save_receipt, get_workbook_session, graph_workbook, list_recovery_artifacts, list_save_receipts, list_workbooks, open_workbook, poll_canvas_commands, profile_workbook, read_range, report_canvas_context, reveal_range, save_screenshot, save_workbook, save_workbook_canvas, screenshot_workbook, validate_workbook
+PASS  open_workbook returns a session for the sample workbook — session a18d2ffe… rev 96a1f549a0f2…
+PASS  fetch bytes -> headless edit -> save_workbook round-trip — new rev 4a6e9cf388f6…, backup kept
+PASS  validate_workbook reopens the saved file headlessly — sheets: Sheet1
+PASS  screenshot_workbook writes a PNG inside the root — sample.png (30122 bytes)
+PASS  outside-root selectors are rejected with invalid-path — 4 hostile selectors refused
+PASS  a stale session save is refused and preserved, never a silent winner — refused; attempt preserved as sample.conflict-2026-09-19T21-04-21-773Z.xlsx
+PASS  close_workbook_session ends the session — closed and no longer resolvable
+
+13 passed, 0 failed

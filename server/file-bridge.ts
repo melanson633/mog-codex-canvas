@@ -118,6 +118,18 @@ export function createBridgeHandler(options: FileBridgeOptions): BridgeHandler {
       if (url.pathname === '/api/analyst/example' && req.method === 'POST') {
         return sendJson(res, 200, await ensureConsultantExample(service));
       }
+      if (url.pathname === '/api/workbooks' && req.method === 'POST') {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        for await (const chunk of req) {
+          size += chunk.length;
+          if (size > 1_024) return sendJson(res, 413, { message: 'Workbook creation request exceeds 1 KB' });
+          chunks.push(Buffer.from(chunk));
+        }
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (!body || typeof body.name !== 'string') throw new WorkbookError('invalid-path', 'A workbook name is required.');
+        return sendJson(res, 201, await service.createBlank(body.name));
+      }
       if (url.pathname === '/api/config' && req.method === 'GET') {
         return sendJson(res, 200, { root: service.root, files: await service.list() });
       }

@@ -70,7 +70,7 @@ export function createMogCanvasServer(options: MogCanvasServerOptions): McpServe
   const analyst = createAnalystTools(service);
   server.registerTool('analyze_financial_workbook', {
     title: 'Financial workbench',
-    description: 'Saved-revision financial analysis: compact context, explain a cell, formula review, explicit range reconciliation, or disposable numeric sensitivity. Returns exact sources and coverage limits. Scenarios never save. Formula anomalies are review leads. Personal-data guards cannot be bypassed. Unsaved canvas edits are excluded.',
+    description: 'Saved-revision financial analysis: context, explain, audit, reconcile, scenario, two-input sensitivity, drivers, goalSeek, positional variance, and explicit model checks. Returns exact sources, assumptions and coverage. Engine experiments never save; goal seek is bracketed and driver impacts are local. Formula anomalies are review leads. Personal-data guards cannot be bypassed. Unsaved canvas edits are excluded.',
     inputSchema: { request: analystRequest },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
   }, guarded(async ({ request }) => ok({ ...await analyst(request) })));

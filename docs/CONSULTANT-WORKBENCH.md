@@ -7,7 +7,9 @@ No cloud host or external AI service is required.
 
 ## Workflow
 
-Open a workbook or create the financial example. Human edits occur in the real
+Choose **New workbook** in the toolbar or empty state, enter a name, and create
+a blank `.xlsx` with an empty `Sheet1`. Existing names are never overwritten.
+You can also open an existing workbook or create the financial example. Human edits occur in the real
 canvas. Save those changes before analyzing. Use selection copies the current
 canvas cell/range into the analysis form.
 
@@ -27,8 +29,29 @@ canvas cell/range into the analysis form.
   in isolated disposable engine instances. Supported models have one sheet,
   at most 10,000 populated cells and 2,000 formulas. Local arithmetic, SUM, MIN,
   MAX, AVERAGE, ABS, ROUND and IF are accepted; unsupported, volatile, cyclic and
-  unresolved formulas are refused. A 20-second process limit bounds calculation.
+  unresolved formulas are refused. A 30-second process limit bounds calculation.
   This is installed-engine execution, not a guarantee of universal Excel parity.
+- **Sensitivity:** two distinct numeric inputs, up to five values on each axis,
+  and one output. The heatmap shows all requested combinations, with exact values.
+- **Drivers:** rank the output spread across explicit low/high input assumptions.
+  The UI compares two drivers; the API accepts up to six. Each input changes alone,
+  so the ranking does not measure interactions or prove causation.
+- **Goal seek:** bracket a target between two input bounds and solve by bisection,
+  up to 40 iterations. Convergence requires the output residual to meet the stated
+  tolerance. Discontinuous models can fail to converge; solutions need not be unique.
+- **Variance:** compare equal-shaped numeric ranges, up to 200 cells. Each row
+  contributes to the total difference. Matching is positional, not by account name.
+  Percentage changes use the absolute baseline; a zero baseline produces N/A.
+- **Check packs:** run up to eight named equals/minimum/maximum controls against
+  fixed amounts or another range total. Import/export version 1 JSON packs. Imports
+  change the draft only; review and run them explicitly. Passing is not certification.
+- **Evidence notebook:** pin up to 20 results from one workbook revision, then
+  download the JSON record or a printable HTML brief. The notebook stays in this
+  browser tab only. Export before closing; clear it before changing source revision.
+
+Sensitivity, drivers and goal seek share the scenario model limits and never save
+their disposable copies. Check packs and variance use saved numeric values and
+reject blanks, text, errors and missing formula caches.
 
 Export evidence downloads the exact result, saved revision, source addresses,
 timing and coverage. Results describe the named saved revision, not subsequent
@@ -55,6 +78,15 @@ The generated `consultant-example.xlsx` has one Model sheet. B8 EBITDA is
 at 0, 0.1 and 0.2 produces B8 values 300,000, 360,000 and 420,000. D19 deliberately
 breaks the multiplication pattern for a review exercise. Example creation uses
 the workbook service, validates through the engine and captures A1:D20.
+
+The sensitivity center case returns 360,000. Margin B4 has a 220,000 tested output
+spread versus growth B3's 120,000. Goal seek reaches 420,000 at approximately 20%
+growth. The positional bridge between assets and funding has offsetting components
+100,000 / -250,000 / 150,000; these are not matched accounts or actual/budget data.
+The default check pack passes the balance and the 300,000 EBITDA floor.
+
+See [the ten-option research ranking](DECISION-DESK-RESEARCH.md) and
+[the Sites, WebMCP, TypeSafe and TabFM assessment](HOSTED-WORKFLOW-ASSESSMENT.md).
 
 The full test suite runs files sequentially because an existing latency gate
 measures wall-clock time; concurrent native-engine tests distort that measurement.

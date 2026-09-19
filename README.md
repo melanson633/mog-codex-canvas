@@ -9,7 +9,9 @@ in two forms that share one workbook service and one security policy:
    [`docs/CLAUDE-CODE-PLUGIN.md`](docs/CLAUDE-CODE-PLUGIN.md).
 2. **A standalone financial workbench** — a local production app with a live
    canvas, saved-cell inspection, dependency tracing, formula review, tie-outs,
-   and disposable scenarios. A Vite dev server is also available.
+   disposable scenarios, sensitivity, goal seek, driver analysis, variance bridges,
+   reusable check packs and a printable evidence notebook. See the
+   [workbench guide](docs/CONSULTANT-WORKBENCH.md). A Vite dev server is also available.
 
 The canvas is the real thing in both: `@mog-sdk/spreadsheet-app`, the same
 engine and UI Mog ships everywhere else. No mock grid.
@@ -86,7 +88,7 @@ the API and real browser, including exact answers, mobile layout, and source
 preservation. Use an isolated workbook root for release testing.
 
 The MCP lane keeps its separate `npm run build:mcp-app` build and loopback asset
-host. Agents can call `analyze_financial_workbook` with the same five analysis
+host. Agents can call `analyze_financial_workbook` with the same ten analysis
 actions as the workbench. See [workbench scope and limits](docs/CONSULTANT-WORKBENCH.md).
 
 ## What works

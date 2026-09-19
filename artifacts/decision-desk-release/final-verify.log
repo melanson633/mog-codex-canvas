@@ -1,0 +1,31 @@
+
+> mog-codex-live-xlsx@0.1.0 verify
+> node scripts/verify.mjs
+
+[PASS] headless formula compute — A3 = SUM(10,32)
+[PASS] saved workbook reopens — Sheet1
+[PASS] value survives xlsx round-trip
+[PASS] headless screenshot returns PNG — 3037 bytes
+[PASS] wasm served at /mog/compute_core_wasm_bg.wasm — 200 application/wasm 41303291 bytes
+[PASS] wasm served at /node_modules/.vite/deps/compute_core_wasm_bg.wasm — 200 application/wasm 41303291 bytes
+[PASS] embed font served — status 200
+[PASS] GET /api/config
+[PASS] path traversal rejected — status 400
+[PASS] PUT /api/workbook writes bytes — 3546 bytes
+[PASS] GET /api/workbook returns same size
+[PASS] POST /api/validate reads the saved file — Sheet1
+[PASS] startup entry imports nothing from @mog-sdk
+[PASS] adapter resolution imports the embed stylesheet
+[PASS] the returned Mog adapter imports no stylesheet of its own
+[PASS] healthy imports resolve to the Mog embed adapter — Mog embed (@mog-sdk/spreadsheet-app)
+[PASS] stylesheet is imported before the embed module — styles,module
+[PASS] missing stylesheet returns the unavailable adapter, not a canvas — Failed to load @mog-sdk/spreadsheet-app/styles.css: @mog-sdk/spreadsheet-app/styles.css is missing
+[PASS] missing embed package returns the unavailable adapter — Failed to load @mog-sdk/spreadsheet-app: @mog-sdk/spreadsheet-app is missing
+[PASS] embed without the expected exports returns the unavailable adapter — @mog-sdk/spreadsheet-app loaded but does not export createSpreadsheetRuntime + mountSpreadsheetApp. The embed API changed; update src/adapters/mog-embed-adapter.ts.
+[PASS] browser candidates include a per-user Chrome install — C:/Users/MarkMelanson/AppData/Local/Google/Chrome/Application/chrome.exe
+[PASS] smoke test resolves an installed browser — C:/Program Files/Google/Chrome/Application/chrome.exe
+[PASS] browser resolution skips candidates that are not installed — C:/Program Files/Google/Chrome/Application/chrome.exe
+[PASS] headless lane refuses "../escape.xlsx" — [headless] Path escapes the workbook root: ../escape.xlsx
+[PASS] headless lane refuses "sample.txt" — [headless] A workbook path must end in .xlsx: sample.txt
+
+All checks passed.

@@ -1,4 +1,4 @@
-/** Synthetic user release gate. Only creates the fixed financial example; never edits other workbooks. */
+/** Synthetic user release gate. Creates the financial example and a uniquely named blank workbook; never edits other workbooks. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
@@ -44,9 +44,32 @@ check('tie-out reports an actual difference', mismatch.status === 'difference' &
 const scenario = await analyze('scenario', { input: 'B3', values: [0, 0.1, 0.2], outputs: ['B8'], expectedRevision: context.revision });
 check('three growth scenarios match known answers', scenario.cases.every((item, index) => Math.abs(item.outputs.B8 - [300000, 360000, 420000][index]) < 1e-6));
 check('scenario source bytes remain identical', before.equals(await getBytes()));
+const sensitivity = await analyze('sensitivity', { rowInput: 'B3', rowValues: [0, 0.1, 0.2], colInput: 'B4', colValues: [0.5, 0.6, 0.7], output: 'B8' });
+check('entire joint sensitivity grid matches independent arithmetic', sensitivity.matrix.every((row, r) => row.every((value, c) => Math.abs(value - (1000000 * (1 + r / 10) * (0.5 + c / 10) - 300000)) < 1e-6)));
+const drivers = await analyze('drivers', { inputs: [{ cell: 'B3', low: 0, high: 0.2 }, { cell: 'B4', low: 0.5, high: 0.7 }], output: 'B8' });
+check('driver ranking identifies margin before growth with correct spreads', drivers.drivers[0].cell === 'B4' && Math.abs(drivers.drivers[0].span - 220000) < 1e-6 && Math.abs(drivers.drivers[1].span - 120000) < 1e-6);
+const goal = await analyze('goalSeek', { input: 'B3', output: 'B8', target: 420000, lower: 0, upper: 1, tolerance: 0.01 });
+check('goal seek reaches 420000 with approximately 20 percent growth', goal.status === 'converged' && Math.abs(goal.solution - 0.2) < 1e-6 && Math.abs(goal.residual) <= 0.01);
+const variance = await analyze('variance', { baseline: 'B11:B13', comparison: 'D11:D13' });
+check('positional bridge explains offsetting components and reconciles', variance.difference === 0 && variance.residual === 0 && JSON.stringify(variance.rows.map(row => row.difference)) === JSON.stringify([100000, -250000, 150000]));
+const checks = await analyze('checks', { checks: [{ label: 'Funding', range: 'B11:B13', operator: 'equals', compareRange: 'D11:D13' }, { label: 'EBITDA floor', range: 'B8', operator: 'at-least', target: 300000 }] });
+check('explicit check pack passes both known controls', checks.status === 'passed' && checks.passed === 2 && checks.failed === 0);
+const failedCheck = await analyze('checks', { checks: [{ label: 'Deliberate failure', range: 'B8', operator: 'at-most', target: 300000 }] });
+check('failed business control is clearly reported as a failed check', failedCheck.status === 'failed' && failedCheck.failed === 1);
+check('new analysis evidence retains exact requests and source revision', [sensitivity, drivers, goal, variance, checks].every(result => result.revision === context.revision && result.evidence.request.action === result.action && result.sourceUnchanged === true));
+check('all decision tools preserve source bytes', before.equals(await getBytes()));
+for (const [fields, reason] of [
+  [{ action: 'sensitivity', rowInput: 'B3', rowValues: [0], colInput: '$b$3', colValues: [1], output: 'B8' }, 'Select distinct input cells'],
+  [{ action: 'goalSeek', input: 'B3', output: 'B8', target: 99999999, lower: 0, upper: 1 }, 'target is not bracketed'],
+  [{ action: 'checks', checks: [{ label: 'Invalid', range: 'A1', operator: 'equals', target: 0 }] }, 'require numeric cells'],
+  [{ action: 'variance', baseline: 'B11:B13', comparison: 'D11:D12' }, 'same shape'],
+]) {
+  const response = await fetch(origin + '/api/analyst', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name, sheet: 'Model', ...fields }) });
+  check(`${fields.action} rejects an invalid analysis for the expected reason`, response.status === 400 && (await response.text()).includes(reason));
+}
 const rejected = await fetch(origin + '/api/analyst', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'scenario', name, sheet: 'Model', input: 'B8', values: [1], outputs: ['B8'] }) });
-check('formula cells cannot be overwritten as scenario assumptions', rejected.status === 400);
-await writeFile(join(output, 'analysis-evidence.json'), JSON.stringify({ context, warm, explain, audit, tie, mismatch, scenario }, null, 2));
+check('formula cells cannot be overwritten as scenario assumptions', rejected.status === 400 && (await rejected.text()).includes('saved numeric constant, not a formula'));
+await writeFile(join(output, 'analysis-evidence.json'), JSON.stringify({ context, warm, explain, audit, tie, mismatch, scenario, sensitivity, drivers, goal, variance, checks, failedCheck }, null, 2));
 
 const profile = await mkdtemp(join(tmpdir(), 'mog-consultant-browser-'));
 const port = 9400 + Math.floor(Math.random() * 500);
@@ -65,18 +88,49 @@ try {
   await send('Runtime.enable');
   await send('Page.reload', { ignoreCache: true });
   await until(() => evaluate(`!!document.querySelector('[data-testid="load-example"]')`));
+  check('new workbook is available in the toolbar and empty state', await evaluate(`!!document.querySelector('[data-testid="new-workbook"]') && !!document.querySelector('[data-testid="empty-new-workbook"]')`));
+  const blankName = `Release blank ${Date.now()}.xlsx`;
+  const fillWorkbookName = value => evaluate(`(() => { const field = document.querySelector('[data-testid="new-workbook-name"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(field, ${JSON.stringify(value)}); field.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await evaluate(`document.querySelector('[data-testid="empty-new-workbook"]').click()`);
+  await until(() => evaluate(`document.querySelector('.new-workbook-dialog').open`));
+  await fillWorkbookName(blankName);
+  const newDialogShot = await send('Page.captureScreenshot', { format: 'png' });
+  await writeFile(join(output, 'new-workbook-dialog.png'), Buffer.from(newDialogShot.data, 'base64'));
+  await evaluate(`document.querySelector('[data-testid="create-workbook"]').click()`);
+  await until(() => evaluate(`!document.querySelector('.new-workbook-dialog').open && document.querySelector('#workbook').value === ${JSON.stringify(blankName)} && document.querySelector('iframe')?.contentDocument?.querySelector('.status')?.textContent === 'renderer ready'`), 180000);
+  const blankContext = await json('/api/analyst', { action: 'context', name: blankName, sheet: 'Sheet1', range: 'A1:D20' });
+  check('named blank workbook opens a real empty Sheet1 canvas', blankContext.cells.length === 0 && await evaluate(`document.querySelector('iframe').contentDocument.querySelector('.canvas canvas') !== null`));
+  const blankBefore = Buffer.from(await (await fetch(`${origin}/api/workbook?path=${encodeURIComponent(blankName)}`)).arrayBuffer());
+  await evaluate(`document.querySelector('[data-testid="new-workbook"]').click()`);
+  await fillWorkbookName(blankName);
+  await evaluate(`document.querySelector('[data-testid="create-workbook"]').click()`);
+  await until(() => evaluate(`document.querySelector('[data-testid="create-workbook-error"]')?.textContent.includes('already exists')`));
+  check('duplicate creation shows a useful error and preserves the existing workbook', blankBefore.equals(Buffer.from(await (await fetch(`${origin}/api/workbook?path=${encodeURIComponent(blankName)}`)).arrayBuffer())));
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  check('new workbook dialog fits a mobile viewport', await evaluate(`document.querySelector('.new-workbook-dialog').getBoundingClientRect().width <= window.innerWidth && document.querySelector('.new-workbook-dialog').scrollWidth <= document.querySelector('.new-workbook-dialog').clientWidth`));
+  await evaluate(`Array.from(document.querySelectorAll('.new-workbook-dialog button')).find(button => button.textContent === 'Cancel').click()`);
+  check('cancel preserves the selected workbook', await evaluate(`!document.querySelector('.new-workbook-dialog').open && document.querySelector('#workbook').value === ${JSON.stringify(blankName)}`));
+  await send('Emulation.clearDeviceMetricsOverride');
   await evaluate(`document.querySelector('[data-testid="load-example"]').click()`);
-  await until(() => evaluate(`document.querySelector('iframe')?.contentDocument?.querySelector('.status')?.textContent === 'renderer ready'`), 180000);
+  await until(() => evaluate(`document.querySelector('#workbook').value === ${JSON.stringify(name)} && document.querySelector('iframe')?.contentDocument?.querySelector('.picker')?.value === ${JSON.stringify(name)} && document.querySelector('iframe')?.contentDocument?.querySelector('.status')?.textContent === 'renderer ready' && !document.querySelector('[data-testid="run-analysis"]').disabled`), 180000);
   check('production real Mog canvas reaches renderer ready', true);
   check('canvas renders actual spreadsheet elements', await evaluate(`document.querySelector('iframe').contentDocument.querySelector('.canvas').querySelectorAll('*').length > 50`));
   check('embedded canvas cannot diverge from selected workbook', await evaluate(`document.querySelector('iframe').contentDocument.querySelector('.picker').disabled && document.querySelector('iframe').contentDocument.querySelector('.picker').value === document.querySelector('#workbook').value`));
   async function exerciseControls(viewport) {
-   for (const [label, expected] of [['Inspect', '360000'], ['Explain', 'B7'], ['Review', 'D19'], ['Tie out', '1,000,000'], ['Scenarios', '420,000']]) {
+   for (const [label, expected] of [['Inspect', '360000'], ['Explain', 'B7'], ['Review', 'D19'], ['Tie out', '1,000,000'], ['Scenarios', '420,000'], ['Sensitivity', '360,000'], ['Drivers', '360,000'], ['Goal seek', 'Target reached within tolerance'], ['Variance', '33.3333%'], ['Check packs', '2 passed']]) {
     await evaluate(`Array.from(document.querySelectorAll('.mode-tabs button')).find(button => button.textContent === ${JSON.stringify(label)}).click()`);
     await evaluate(`document.querySelector('[data-testid="run-analysis"]').click()`);
-    await until(() => evaluate(`!!document.querySelector('[data-testid="analysis-result"]') || !!document.querySelector('[role="alert"]')`));
-    const error = await evaluate(`document.querySelector('[role="alert"]')?.textContent ?? ''`);
+    await until(() => evaluate(`!!document.querySelector('[data-testid="analysis-result"]') || !!document.querySelector('.analysis-content [role="alert"]')`));
+    const error = await evaluate(`document.querySelector('.analysis-content [role="alert"]')?.textContent ?? ''`);
     check(`${viewport} ${label} runs through the browser controls`, !error && await evaluate(`document.querySelector('[data-testid="analysis-result"]').textContent.includes(${JSON.stringify(expected)})`));
+    if (label === 'Goal seek') check(`${viewport} goal-seek input preserves reproducible precision`, await evaluate(`document.querySelector('.solution-value').textContent === ${JSON.stringify(`Input ${goal.solution}`)}`));
+    if (label === 'Check packs') check(`${viewport} check outcomes show comparison and effective tolerance`, await evaluate(`['Equals', 'At least', '0.01', 'tolerance'].every(value => document.querySelector('[data-testid="checks-result"]').textContent.includes(value))`));
+    if (viewport === 'desktop' && ['Sensitivity', 'Drivers', 'Goal seek', 'Variance', 'Check packs'].includes(label)) await evaluate(`document.querySelector('[data-testid="pin-evidence"]').click()`);
+    if (viewport === 'desktop' && ['Sensitivity', 'Drivers', 'Goal seek', 'Variance'].includes(label)) {
+      await evaluate(`document.querySelector('[data-testid="analysis-result"]').scrollIntoView({block:'center'})`);
+      const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+      await writeFile(join(output, `${label.toLowerCase().replaceAll(' ', '-')}.png`), Buffer.from(shot.data, 'base64'));
+    }
    }
   }
   await exerciseControls('desktop');
@@ -94,17 +148,107 @@ try {
   const downloads = join(profile, 'downloads');
   await mkdir(downloads);
   await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloads });
-  await evaluate(`document.querySelector('.evidence-footer button').click()`);
-  const exported = await until(async () => JSON.parse(await readFile(join(downloads, 'mog-scenario-evidence.json'), 'utf8')));
-  check('downloaded evidence retains the scenario and saved revision', exported.action === 'scenario' && exported.revision === context.revision && exported.cases.length === 3);
+  await evaluate(`Array.from(document.querySelectorAll('.evidence-footer button')).find(button => button.textContent.includes('Export evidence')).click()`);
+  const exported = await until(async () => JSON.parse(await readFile(join(downloads, 'mog-checks-evidence.json'), 'utf8')));
+  check('downloaded evidence retains checks and saved revision', exported.action === 'checks' && exported.revision === context.revision && exported.checks.length === 2);
+  await evaluate(`document.querySelector('[data-testid="export-notebook"]').click(); document.querySelector('[data-testid="export-brief"]').click(); Array.from(document.querySelectorAll('.pack-toolbar button')).find(button => button.textContent.includes('Download')).click()`);
+  const notebook = await until(async () => JSON.parse(await readFile(join(downloads, 'mog-decision-evidence.json'), 'utf8')));
+  check('notebook exports all five pinned decision results from one revision', notebook.entries.length === 5 && notebook.entries.every(entry => entry.result.revision === context.revision && entry.assumptions.action === entry.result.action));
+  const brief = await until(async () => readFile(join(downloads, 'mog-decision-brief.html'), 'utf8'));
+  check('printable brief contains source revision and analysis evidence', brief.includes(context.revision) && brief.includes('420') && brief.includes('Decision evidence'));
+  await writeFile(join(output, 'decision-brief.html'), brief);
+  await writeFile(join(output, 'decision-notebook.json'), JSON.stringify(notebook, null, 2));
+  const packPath = join(downloads, 'mog-check-pack.json');
+  const pack = await until(async () => JSON.parse(await readFile(packPath, 'utf8')));
+  check('check pack exports reusable rules', pack.version === 1 && pack.checks.length === 2);
+  await evaluate(`document.querySelector('[data-testid="add-check"]').click()`);
+  const documentNode = await send('DOM.getDocument');
+  const fileNode = await send('DOM.querySelector', { nodeId: documentNode.root.nodeId, selector: '[data-testid="import-check-pack"]' });
+  await send('DOM.setFileInputFiles', { nodeId: fileNode.nodeId, files: [packPath] });
+  await until(() => evaluate(`document.querySelector('[data-testid="add-check"]').textContent.includes('2/8')`));
+  check('imported check pack restores the draft without running it', await evaluate(`!document.querySelector('[data-testid="analysis-result"]')`));
+  for (const [label, content] of [
+    ['malformed JSON', '{'],
+    ['unsupported version', JSON.stringify({ version: 2, checks: pack.checks })],
+    ['invalid rule', JSON.stringify({ version: 1, checks: [{ label: 'Invalid', range: 'B8', operator: 'equals', target: 'not a number' }] })],
+    ['oversized file', ' '.repeat(32769)],
+  ]) {
+    const invalidPath = join(downloads, 'invalid-pack.json');
+    await writeFile(invalidPath, content);
+    await send('DOM.setFileInputFiles', { nodeId: fileNode.nodeId, files: [invalidPath] });
+    await until(() => evaluate(`!!document.querySelector('.analysis-content [role="alert"]')`));
+    check(`check-pack import rejects ${label} and preserves the draft`, await evaluate(`document.querySelector('[data-testid="add-check"]').textContent.includes('2/8') && Array.from(document.querySelectorAll('.rule-card input')).some(input => input.value === 'Amounts agree')`));
+    // A valid import clears the prior error before probing the next failure.
+    await send('DOM.setFileInputFiles', { nodeId: fileNode.nodeId, files: [packPath] });
+    await until(() => evaluate(`!document.querySelector('.analysis-content [role="alert"]')`));
+  }
+  const firstPack = join(downloads, 'slow-first.json'), secondPack = join(downloads, 'slow-second.json');
+  await writeFile(firstPack, JSON.stringify({ version: 1, checks: [{ ...pack.checks[0], label: 'Earlier import' }] }));
+  await writeFile(secondPack, JSON.stringify({ version: 1, checks: [{ ...pack.checks[0], label: 'Later import' }] }));
+  await evaluate(`(() => {
+    const original = File.prototype.text; window.pendingPackReads = {};
+    window.restorePackReads = () => { File.prototype.text = original; };
+    File.prototype.text = function() {
+      const content = original.call(this);
+      return this.name.startsWith('slow-') ? new Promise(resolve => { window.pendingPackReads[this.name] = async () => resolve(await content); }) : content;
+    };
+  })()`);
+  await send('DOM.setFileInputFiles', { nodeId: fileNode.nodeId, files: [firstPack] });
+  await until(() => evaluate(`!!window.pendingPackReads['slow-first.json']`));
+  await send('DOM.setFileInputFiles', { nodeId: fileNode.nodeId, files: [secondPack] });
+  await until(() => evaluate(`!!window.pendingPackReads['slow-second.json']`));
+  await evaluate(`window.pendingPackReads['slow-second.json']()`);
+  await until(() => evaluate(`document.querySelector('.rule-card input')?.value === 'Later import'`));
+  await evaluate(`window.pendingPackReads['slow-first.json']()`);
+  await pause(100);
+  check('a slower earlier check-pack import cannot overwrite a later import', await evaluate(`document.querySelector('.rule-card input').value === 'Later import'`));
+  await evaluate(`delete window.pendingPackReads['slow-first.json']`);
+  await send('DOM.setFileInputFiles', { nodeId: fileNode.nodeId, files: [firstPack] });
+  await until(() => evaluate(`!!window.pendingPackReads['slow-first.json']`));
+  await evaluate(`document.querySelector('[data-testid="add-check"]').click(); window.pendingPackReads['slow-first.json']()`);
+  await pause(100);
+  check('a pending check-pack import cannot overwrite manual draft edits', await evaluate(`document.querySelector('[data-testid="add-check"]').textContent.includes('2/8') && document.querySelector('.rule-card input').value === 'Later import'`));
+  await evaluate(`window.restorePackReads()`);
+  await send('DOM.setFileInputFiles', { nodeId: fileNode.nodeId, files: [packPath] });
+  await until(() => evaluate(`document.querySelector('.rule-card input')?.value === 'Amounts agree'`));
+  await evaluate(`document.querySelector('[data-testid="run-analysis"]').click()`);
+  await until(() => evaluate(`document.querySelector('[data-testid="checks-result"]')?.textContent.includes('2 passed')`));
+  check('imported example check pack executes successfully', true);
+  await evaluate(`(() => {
+    const original = window.fetch;
+    window.fetch = async (url, options) => {
+      if (String(url) === '/api/analyst') {
+        window.fetch = original;
+        const response = await original(url, options);
+        const result = await response.json(); result.revision = 'synthetic-different-revision';
+        return new Response(JSON.stringify(result), { status: response.status });
+      }
+      return original(url, options);
+    };
+    document.querySelector('[data-testid="run-analysis"]').click();
+  })()`);
+  await until(() => evaluate(`document.querySelector('.evidence-footer span')?.title === 'synthetic-different-revision'`));
+  await evaluate(`document.querySelector('[data-testid="pin-evidence"]').click()`);
+  check('notebook refuses evidence from a different revision', await evaluate(`document.querySelector('.analysis-content [role="alert"]')?.textContent.includes('another workbook or saved revision') && document.querySelectorAll('[data-testid="evidence-notebook"] li').length === 5`));
   await evaluate(`Array.from(document.querySelectorAll('.mode-tabs button')).find(button => button.textContent === 'Inspect').click()`);
   await evaluate(`document.querySelector('[data-testid="run-analysis"]').click()`);
   await until(() => evaluate(`!!document.querySelector('[data-testid="analysis-result"] .cell-link')`));
+  await evaluate(`(() => { const sibling = document.createElement('iframe'); sibling.id = 'competing-canvas'; sibling.style.cssText = 'position:fixed;left:-2000px;width:900px;height:600px'; sibling.src = '/index.html?wb=' + encodeURIComponent(${JSON.stringify(name)}) + '&compact=1&embedded=1'; document.body.append(sibling); })()`);
+  await until(() => evaluate(`document.querySelector('#competing-canvas').contentDocument?.querySelector('.status')?.textContent === 'renderer ready'`));
+  const siblingInputs = await evaluate(`Array.from(document.querySelector('#competing-canvas').contentDocument.querySelectorAll('.canvas input')).map(input => input.value)`);
   await evaluate(`Array.from(document.querySelectorAll('.cell-link')).find(button => button.textContent === 'B8').click()`);
   // Navigation deliberately preserves the human context bus; verify the real
   // formula bar instead of mistaking the last human selection for view state.
-  await until(() => evaluate(`Array.from(document.querySelector('iframe').contentDocument.querySelectorAll('.canvas input')).some(input => input.value.replace(/^=/, '') === 'B7-B5')`));
+  try {
+    await until(() => evaluate(`Array.from(document.querySelector('iframe').contentDocument.querySelectorAll('.canvas input')).some(input => input.value.replace(/^=/, '') === 'B7-B5')`));
+  } catch (error) {
+    const navigation = await evaluate(`(() => { const frame = document.querySelector('iframe').contentDocument; return { parentError: document.querySelector('.analysis-content [role="alert"]')?.textContent, frameError: frame.querySelector('.error')?.textContent, status: frame.querySelector('.status')?.textContent, inputs: Array.from(frame.querySelectorAll('input')).map(input => ({ value: input.value, placeholder: input.placeholder })), text: frame.body.textContent.slice(-2500) }; })()`);
+    await writeFile(join(output, 'navigation-failure.json'), JSON.stringify(navigation, null, 2));
+    throw new Error(`Cell navigation failed: ${JSON.stringify(navigation)}`, { cause: error });
+  }
   check('cell evidence navigates the live canvas to B8', true);
+  check('evidence navigation targets its own canvas with a competing workbook view open', await evaluate(`document.querySelector('iframe').contentDocument.querySelector('[data-testid="reveal-status"]')?.dataset.revealStatus === 'applied' && JSON.stringify(Array.from(document.querySelector('#competing-canvas').contentDocument.querySelectorAll('.canvas input')).map(input => input.value)) === ${JSON.stringify(JSON.stringify(siblingInputs))}`));
+  await evaluate(`document.querySelector('#competing-canvas').remove()`);
   const selection = await json(`/api/context?path=${name}`);
   for (const label of ['Scenarios', 'Tie out']) {
     await evaluate(`Array.from(document.querySelectorAll('.mode-tabs button')).find(button => button.textContent === ${JSON.stringify(label)}).click()`);
@@ -134,6 +278,25 @@ try {
   await send('Page.navigate', { url: `${origin}/index.html?wb=missing-release-probe.xlsx&embedded=1` });
   await until(() => evaluate(`document.querySelector('.status')?.textContent === 'workbook unavailable'`));
   check('an unavailable pinned workbook never falls back to another canvas', await evaluate(`document.querySelector('.error')?.textContent.includes('requested workbook') && !document.querySelector('.canvas canvas')`));
+  await send('Emulation.setDeviceMetricsOverride', { width: 1100, height: 900, deviceScaleFactor: 1, mobile: false });
+  await send('Page.navigate', { url: new URL(`file:///${join(output, 'decision-brief.html').replaceAll('\\', '/')}`).href });
+  await until(() => evaluate(`document.querySelector('h1')?.textContent === 'Decision evidence'`));
+  const outcomes = await evaluate(`Object.fromEntries(Array.from(document.querySelectorAll('section')).map(section => {
+    const heading = Array.from(section.querySelectorAll('h3')).find(node => node.textContent === 'Outcome');
+    const parts = []; let node = heading?.nextElementSibling;
+    while (node && node.tagName !== 'H3' && node.tagName !== 'DETAILS') { parts.push(node.textContent); node = node.nextElementSibling; }
+    return [section.querySelector('h2').textContent.replace(/^\\d+\\. /, ''), parts.join(' ')];
+  }))`);
+  const expectedOutcomes = {
+    sensitivity: ['Output:', 'B8', 'B3', 'B4', '360,000'],
+    drivers: ['Baseline output:', '360,000', 'Low output', 'High output', 'B4', 'B3'],
+    goalSeek: ['Target reached within tolerance', 'Candidate input', String(notebook.entries.find(entry => entry.result.action === 'goalSeek').result.solution)],
+    variance: ['Baseline 1,000,000', 'Comparison source', '100,000', '-250,000', '150,000'],
+    checks: ['2 passed; 0 failed', 'Comparison', 'Effective tolerance', '0.01', 'Passed'],
+  };
+  check('downloaded client brief renders all five readable analysis outcomes', Object.keys(outcomes).length === 5 && Object.entries(expectedOutcomes).every(([action, values]) => values.every(value => outcomes[action]?.includes(value))) && await evaluate(`document.documentElement.scrollWidth <= window.innerWidth + 1`));
+  const briefShot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+  await writeFile(join(output, 'decision-brief.png'), Buffer.from(briefShot.data, 'base64'));
   evidence.browserExceptions = errors;
 } finally {
   socket?.close(); browser.kill();

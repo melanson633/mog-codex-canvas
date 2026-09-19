@@ -95,3 +95,42 @@ body { margin: 0; }
 @media (max-width: 1000px) { .workbench-body { grid-template-columns: minmax(0, 1fr) 360px; } .analysis-content { padding: 18px; } .mode-tabs { padding: 0 5px; } .workbench .mode-tabs button { padding: 12px 7px; } }
 @media (max-width: 760px) { .workbench-header { padding: 15px 18px; } .local-label { display: none; } .workbook-bar { padding: 15px 18px; flex-wrap: wrap; gap: 12px; } .workbook-bar select { max-width: 90vw; } .workbook-actions { flex-wrap: wrap; } .workbench-body { display: flex; flex-direction: column; } .analysis-panel { order: -1; border-left: 0; } .sheet-stage iframe { min-height: 520px; } .empty-workbook { min-height: 380px; } .stage-caption, .stage-footer { flex-wrap: wrap; } .panel-intro { padding: 20px 18px 8px; } .analysis-result { margin-top: 15px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }
+/* Decision tools share the review desk's quiet, paper-like hierarchy. */
+.mode-tabs { flex-wrap: wrap; }
+.decision-tabs { background: #f0f4eb; padding-top: 4px; }
+.workbench .decision-tabs button { padding: 10px 8px; }
+.rule-card { border: 1px solid #dce4d8; border-radius: 6px; background: #f7f9f2; padding: 14px; margin: 14px 0; }
+.rule-heading, .pack-toolbar, .notebook-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.rule-heading { margin-bottom: 12px; }
+.workbench .rule-heading button, .evidence-notebook li button { padding: 4px 7px; font-size: 11px; }
+.workbench .import-pack { font-size: 11px; margin: 0; max-width: 180px; }
+.workbench .import-pack input { padding: 5px; font-size: 10px; }
+.driver-result { border-bottom: 1px solid #dce4d8; padding: 15px 0; }
+.driver-result p { font-size: 11px; line-height: 1.7; font-variant-numeric: tabular-nums; }
+.tornado { margin: 10px 0; position: relative; }
+.tornado:after { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #627869; }
+.tornado-track { height: 13px; position: relative; margin: 3px 0; background: #eef1e9; }
+.tornado-track i { position: absolute; height: 100%; background: #6c947b; }
+.tornado-track.tone-1 i { background: #c3a262; }
+.solution-value { font-size: 25px; font-weight: 400; margin-top: 12px; font-variant-numeric: tabular-nums; }
+.bridge-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 20px 0; }
+.bridge-summary span { color: #687d6d; font-size: 10px; }
+.bridge-summary strong { display: block; color: #234440; font-weight: 500; font-size: 16px; margin-top: 6px; overflow-wrap: anywhere; }
+.workbench caption { text-align: left; padding-bottom: 10px; color: #526c5e; }
+.evidence-footer { flex-wrap: wrap; gap: 8px; }
+.evidence-notebook { margin-top: 28px; border-top: 1px solid #cbd7c7; padding-top: 22px; }
+.evidence-notebook h3 { font-family: Georgia, serif; font-size: 19px; font-weight: 400; }
+.evidence-notebook h3 span { font: 11px 'Segoe UI', sans-serif; color: #718177; }
+.evidence-notebook ol { padding-left: 20px; }
+.evidence-notebook li { padding: 7px 0; }
+.evidence-notebook li button { margin-left: 12px; }
+.notebook-actions { justify-content: flex-start; }
+.empty-workbook-actions, .new-workbook-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.new-workbook-dialog { width: min(460px, calc(100vw - 36px)); box-sizing: border-box; border: 1px solid #cbd7c7; border-radius: 10px; padding: 28px; color: #234440; background: #fbfcf7; box-shadow: 0 20px 70px #12362e30; }
+.new-workbook-dialog::backdrop { background: #183d3659; }
+.new-workbook-dialog h2 { font: 30px Georgia, serif; margin: 12px 0; }
+.new-workbook-dialog p { font-size: 13px; line-height: 1.6; }
+.new-workbook-dialog input { width: 100%; box-sizing: border-box; }
+.new-workbook-dialog .new-workbook-actions { justify-content: flex-end; margin-top: 24px; }
+@media (min-width: 1100px) { .workbench-body { grid-template-columns: minmax(0,1fr) 460px; } }
+@media (max-width: 420px) { .analysis-content { padding: 16px; } .workbench .mode-tabs button { padding: 10px 7px; } }

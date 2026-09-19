@@ -1,0 +1,616 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "result": {
+        "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+        "sheet": "Model",
+        "sourceUnchanged": true,
+        "basis": "disposable-engine",
+        "status": "calculated",
+        "rowInput": "B3",
+        "colInput": "B4",
+        "output": "B8",
+        "rowValues": [
+          0,
+          0.1,
+          0.2
+        ],
+        "colValues": [
+          0.5,
+          0.6,
+          0.7
+        ],
+        "cases": [
+          {
+            "rowValue": 0,
+            "colValue": 0.5,
+            "output": 200000
+          },
+          {
+            "rowValue": 0,
+            "colValue": 0.6,
+            "output": 300000
+          },
+          {
+            "rowValue": 0,
+            "colValue": 0.7,
+            "output": 400000
+          },
+          {
+            "rowValue": 0.1,
+            "colValue": 0.5,
+            "output": 250000
+          },
+          {
+            "rowValue": 0.1,
+            "colValue": 0.6,
+            "output": 360000
+          },
+          {
+            "rowValue": 0.1,
+            "colValue": 0.7,
+            "output": 470000
+          },
+          {
+            "rowValue": 0.2,
+            "colValue": 0.5,
+            "output": 300000
+          },
+          {
+            "rowValue": 0.2,
+            "colValue": 0.6,
+            "output": 420000
+          },
+          {
+            "rowValue": 0.2,
+            "colValue": 0.7,
+            "output": 540000
+          }
+        ],
+        "matrix": [
+          [
+            200000,
+            300000,
+            400000
+          ],
+          [
+            250000,
+            360000,
+            470000
+          ],
+          [
+            300000,
+            420000,
+            540000
+          ]
+        ],
+        "coverage": {
+          "complete": true,
+          "limitations": [
+            "Only the listed row and column combinations were tested; untested cases are outside this evidence.",
+            "Supported models are single-sheet and limited to local arithmetic plus SUM, MIN, MAX, AVERAGE, ABS, ROUND and IF.",
+            "Sensitivity results describe tested assumptions only; they are not forecasts and do not establish causation."
+          ]
+        },
+        "action": "sensitivity",
+        "workbook": "consultant-example.xlsx",
+        "elapsedMs": 550.2,
+        "evidence": {
+          "generatedAt": "2026-09-19T21:11:39.575Z",
+          "source": "saved-workbook",
+          "unsavedCanvasChangesIncluded": false,
+          "request": {
+            "action": "sensitivity",
+            "name": "consultant-example.xlsx",
+            "sheet": "Model",
+            "rowInput": "B3",
+            "rowValues": [
+              0,
+              0.1,
+              0.2
+            ],
+            "colInput": "B4",
+            "colValues": [
+              0.5,
+              0.6,
+              0.7
+            ],
+            "output": "B8"
+          }
+        }
+      },
+      "assumptions": {
+        "action": "sensitivity",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "rowInput": "B3",
+        "colInput": "B4",
+        "rowValues": [
+          0,
+          0.1,
+          0.2
+        ],
+        "colValues": [
+          0.5,
+          0.6,
+          0.7
+        ],
+        "output": "B8"
+      }
+    },
+    {
+      "result": {
+        "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+        "sheet": "Model",
+        "sourceUnchanged": true,
+        "basis": "disposable-engine",
+        "status": "calculated",
+        "output": "B8",
+        "baseline": 360000,
+        "drivers": [
+          {
+            "cell": "B4",
+            "low": 0.5,
+            "high": 0.7,
+            "baselineInput": 0.6,
+            "lowOutput": 250000,
+            "highOutput": 470000,
+            "lowDelta": -110000,
+            "highDelta": 110000,
+            "span": 220000
+          },
+          {
+            "cell": "B3",
+            "low": 0,
+            "high": 0.2,
+            "baselineInput": 0.1,
+            "lowOutput": 300000,
+            "highOutput": 420000,
+            "lowDelta": -60000,
+            "highDelta": 60000,
+            "span": 120000
+          }
+        ],
+        "cases": [
+          {
+            "inputs": {},
+            "output": 360000
+          },
+          {
+            "inputs": {
+              "B3": 0
+            },
+            "output": 300000
+          },
+          {
+            "inputs": {
+              "B3": 0.2
+            },
+            "output": 420000
+          },
+          {
+            "inputs": {
+              "B4": 0.5
+            },
+            "output": 250000
+          },
+          {
+            "inputs": {
+              "B4": 0.7
+            },
+            "output": 470000
+          }
+        ],
+        "coverage": {
+          "complete": true,
+          "limitations": [
+            "Only the listed low and high case for each driver was tested, with one input changed at a time.",
+            "Supported models are single-sheet and limited to local arithmetic plus SUM, MIN, MAX, AVERAGE, ABS, ROUND and IF.",
+            "Driver results describe tested assumptions only; they are not forecasts and do not establish causation."
+          ]
+        },
+        "action": "drivers",
+        "workbook": "consultant-example.xlsx",
+        "elapsedMs": 464.31,
+        "evidence": {
+          "generatedAt": "2026-09-19T21:11:40.189Z",
+          "source": "saved-workbook",
+          "unsavedCanvasChangesIncluded": false,
+          "request": {
+            "action": "drivers",
+            "name": "consultant-example.xlsx",
+            "sheet": "Model",
+            "inputs": [
+              {
+                "cell": "B3",
+                "low": 0,
+                "high": 0.2
+              },
+              {
+                "cell": "B4",
+                "low": 0.5,
+                "high": 0.7
+              }
+            ],
+            "output": "B8"
+          }
+        }
+      },
+      "assumptions": {
+        "action": "drivers",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "output": "B8",
+        "inputs": [
+          {
+            "cell": "B3",
+            "low": 0,
+            "high": 0.2
+          },
+          {
+            "cell": "B4",
+            "low": 0.5,
+            "high": 0.7
+          }
+        ]
+      }
+    },
+    {
+      "result": {
+        "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+        "sheet": "Model",
+        "sourceUnchanged": true,
+        "basis": "disposable-engine",
+        "status": "converged",
+        "solution": 0.19999998807907104,
+        "value": 419999.9928474426,
+        "residual": -0.007152557373046875,
+        "iterations": 24,
+        "cases": [
+          {
+            "input": 0,
+            "value": 300000,
+            "residual": -120000
+          },
+          {
+            "input": 1,
+            "value": 900000,
+            "residual": 480000
+          },
+          {
+            "input": 0.5,
+            "value": 600000,
+            "residual": 180000
+          },
+          {
+            "input": 0.25,
+            "value": 450000,
+            "residual": 30000
+          },
+          {
+            "input": 0.125,
+            "value": 375000,
+            "residual": -45000
+          },
+          {
+            "input": 0.1875,
+            "value": 412500,
+            "residual": -7500
+          },
+          {
+            "input": 0.21875,
+            "value": 431250,
+            "residual": 11250
+          },
+          {
+            "input": 0.203125,
+            "value": 421875,
+            "residual": 1875
+          },
+          {
+            "input": 0.1953125,
+            "value": 417187.5,
+            "residual": -2812.5
+          },
+          {
+            "input": 0.19921875,
+            "value": 419531.25,
+            "residual": -468.75
+          },
+          {
+            "input": 0.201171875,
+            "value": 420703.125,
+            "residual": 703.125
+          },
+          {
+            "input": 0.2001953125,
+            "value": 420117.1875,
+            "residual": 117.1875
+          },
+          {
+            "input": 0.19970703125,
+            "value": 419824.21875,
+            "residual": -175.78125
+          },
+          {
+            "input": 0.199951171875,
+            "value": 419970.703125,
+            "residual": -29.296875
+          },
+          {
+            "input": 0.2000732421875,
+            "value": 420043.9453125,
+            "residual": 43.9453125
+          },
+          {
+            "input": 0.20001220703125,
+            "value": 420007.32421875,
+            "residual": 7.32421875
+          },
+          {
+            "input": 0.199981689453125,
+            "value": 419989.013671875,
+            "residual": -10.986328125
+          },
+          {
+            "input": 0.1999969482421875,
+            "value": 419998.1689453125,
+            "residual": -1.8310546875
+          },
+          {
+            "input": 0.20000457763671875,
+            "value": 420002.74658203125,
+            "residual": 2.74658203125
+          },
+          {
+            "input": 0.20000076293945312,
+            "value": 420000.4577636719,
+            "residual": 0.457763671875
+          },
+          {
+            "input": 0.1999988555908203,
+            "value": 419999.3133544922,
+            "residual": -0.6866455078125
+          },
+          {
+            "input": 0.19999980926513672,
+            "value": 419999.88555908203,
+            "residual": -0.11444091796875
+          },
+          {
+            "input": 0.20000028610229492,
+            "value": 420000.17166137695,
+            "residual": 0.171661376953125
+          },
+          {
+            "input": 0.20000004768371582,
+            "value": 420000.0286102295,
+            "residual": 0.0286102294921875
+          },
+          {
+            "input": 0.19999992847442627,
+            "value": 419999.95708465576,
+            "residual": -0.04291534423828125
+          },
+          {
+            "input": 0.19999998807907104,
+            "value": 419999.9928474426,
+            "residual": -0.007152557373046875
+          }
+        ],
+        "input": "B3",
+        "output": "B8",
+        "target": 420000,
+        "lower": 0,
+        "upper": 1,
+        "tolerance": 0.01,
+        "method": "bracketed-bisection",
+        "scope": "local-bracket",
+        "coverage": {
+          "complete": true,
+          "limitations": [
+            "Only points evaluated inside the supplied bracket were tested; behavior outside that bracket is unknown.",
+            "Supported models are single-sheet and limited to local arithmetic plus SUM, MIN, MAX, AVERAGE, ABS, ROUND and IF.",
+            "A local bracket can contain multiple solutions or cross a discontinuity; convergence does not prove uniqueness or continuity.",
+            "The solution describes this saved model and tested assumptions only; it is not a forecast and does not establish causation."
+          ]
+        },
+        "action": "goalSeek",
+        "workbook": "consultant-example.xlsx",
+        "elapsedMs": 883.24,
+        "evidence": {
+          "generatedAt": "2026-09-19T21:11:41.293Z",
+          "source": "saved-workbook",
+          "unsavedCanvasChangesIncluded": false,
+          "request": {
+            "action": "goalSeek",
+            "name": "consultant-example.xlsx",
+            "sheet": "Model",
+            "input": "B3",
+            "output": "B8",
+            "target": 420000,
+            "lower": 0,
+            "upper": 1,
+            "tolerance": 0.01
+          }
+        }
+      },
+      "assumptions": {
+        "action": "goalSeek",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "input": "B3",
+        "output": "B8",
+        "target": 420000,
+        "lower": 0,
+        "upper": 1,
+        "tolerance": 0.01
+      }
+    },
+    {
+      "result": {
+        "status": "calculated",
+        "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+        "sheet": "Model",
+        "baselineRange": "B11:B13",
+        "comparisonRange": "D11:D13",
+        "baselineTotal": 1000000,
+        "comparisonTotal": 1000000,
+        "difference": 0,
+        "residual": 0,
+        "rows": [
+          {
+            "baselineCell": "B11",
+            "comparisonCell": "D11",
+            "baseline": 300000,
+            "comparison": 400000,
+            "difference": 100000,
+            "percentChange": 33.33333333333333
+          },
+          {
+            "baselineCell": "B12",
+            "comparisonCell": "D12",
+            "baseline": 500000,
+            "comparison": 250000,
+            "difference": -250000,
+            "percentChange": -50
+          },
+          {
+            "baselineCell": "B13",
+            "comparisonCell": "D13",
+            "baseline": 200000,
+            "comparison": 350000,
+            "difference": 150000,
+            "percentChange": 75
+          }
+        ],
+        "alignment": "positional",
+        "basis": "saved-cached-values",
+        "sourceUnchanged": true,
+        "coverage": {
+          "complete": true,
+          "limitations": [
+            "Cells are paired by position, not matched by business labels. Confirm that the selected ranges are comparable.",
+            "Percentage change uses the absolute baseline; a zero baseline has no percentage.",
+            "Saved values only. Formula caches are not recalculated. A bridge explains arithmetic differences, not business causation."
+          ]
+        },
+        "action": "variance",
+        "workbook": "consultant-example.xlsx",
+        "elapsedMs": 3,
+        "evidence": {
+          "generatedAt": "2026-09-19T21:11:41.413Z",
+          "source": "saved-workbook",
+          "unsavedCanvasChangesIncluded": false,
+          "request": {
+            "action": "variance",
+            "name": "consultant-example.xlsx",
+            "sheet": "Model",
+            "baseline": "B11:B13",
+            "comparison": "D11:D13"
+          }
+        }
+      },
+      "assumptions": {
+        "action": "variance",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "baseline": "B11:B13",
+        "comparison": "D11:D13"
+      }
+    },
+    {
+      "result": {
+        "status": "passed",
+        "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+        "sheet": "Model",
+        "checks": [
+          {
+            "label": "Amounts agree",
+            "range": "B11:B13",
+            "operator": "equals",
+            "compareRange": "D11:D13",
+            "tolerance": 0.01,
+            "target": 1000000,
+            "actual": 1000000,
+            "difference": 0,
+            "passed": true
+          },
+          {
+            "label": "EBITDA floor",
+            "range": "B8",
+            "operator": "at-least",
+            "target": 300000,
+            "tolerance": 0.01,
+            "actual": 360000,
+            "difference": 60000,
+            "passed": true
+          }
+        ],
+        "passed": 2,
+        "failed": 0,
+        "basis": "saved-cached-values",
+        "sourceUnchanged": true,
+        "coverage": {
+          "complete": true,
+          "limitations": [
+            "Only the explicitly configured checks were evaluated. Passing is not a correctness certificate or audit opinion.",
+            "Each range is summed; blanks, text, errors, and missing formula caches prevent the entire pack from running.",
+            "Saved values only. Formula caches are not recalculated."
+          ]
+        },
+        "action": "checks",
+        "workbook": "consultant-example.xlsx",
+        "elapsedMs": 4.54,
+        "evidence": {
+          "generatedAt": "2026-09-19T21:11:41.810Z",
+          "source": "saved-workbook",
+          "unsavedCanvasChangesIncluded": false,
+          "request": {
+            "action": "checks",
+            "name": "consultant-example.xlsx",
+            "sheet": "Model",
+            "checks": [
+              {
+                "label": "Amounts agree",
+                "range": "B11:B13",
+                "operator": "equals",
+                "compareRange": "D11:D13",
+                "tolerance": 0.01
+              },
+              {
+                "label": "EBITDA floor",
+                "range": "B8",
+                "operator": "at-least",
+                "target": 300000,
+                "tolerance": 0.01
+              }
+            ]
+          }
+        }
+      },
+      "assumptions": {
+        "action": "checks",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "checks": [
+          {
+            "label": "Amounts agree",
+            "range": "B11:B13",
+            "operator": "equals",
+            "compareRange": "D11:D13",
+            "tolerance": 0.01
+          },
+          {
+            "label": "EBITDA floor",
+            "range": "B8",
+            "operator": "at-least",
+            "target": 300000,
+            "tolerance": 0.01
+          }
+        ]
+      }
+    }
+  ]
+}

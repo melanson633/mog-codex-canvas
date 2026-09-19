@@ -1,0 +1,2281 @@
+{
+  "context": {
+    "status": "ok",
+    "workbook": "consultant-example.xlsx",
+    "sheet": "Model",
+    "range": "A1:D20",
+    "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+    "cache": {
+      "hit": false,
+      "entries": 1
+    },
+    "provenance": "Saved workbook bytes; no recalculation or source changes.",
+    "coverage": {
+      "complete": false,
+      "limitations": [
+        "As-saved values only; unsaved canvas edits and recalculation are not included.",
+        "Privacy scan checks all saved text labels and SSN-shaped values within the analysis bound. Unlabelled numeric birthdates cannot be identified.",
+        "Dependency references use the existing A1 parser; dynamic references and unsupported shapes are not calculated."
+      ]
+    },
+    "cells": [
+      {
+        "address": "A1",
+        "value": "Synthetic consulting model",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B1",
+        "value": "Value",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C1",
+        "value": "Units",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D1",
+        "value": "Illustrative only",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A2",
+        "value": "Revenue",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B2",
+        "value": 1000000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C2",
+        "value": "USD",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D2",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A3",
+        "value": "Revenue growth",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B3",
+        "value": 0.1,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C3",
+        "value": "fraction",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D3",
+        "value": "Scenario input",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A4",
+        "value": "Gross margin",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B4",
+        "value": 0.6,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C4",
+        "value": "fraction",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D4",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A5",
+        "value": "Operating costs",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B5",
+        "value": 300000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C5",
+        "value": "USD",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D5",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A6",
+        "value": "Projected revenue",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B6",
+        "value": 1100000,
+        "formula": "B2*(1+B3)",
+        "isError": false
+      },
+      {
+        "address": "C6",
+        "value": "USD",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D6",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A7",
+        "value": "Gross profit",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B7",
+        "value": 660000,
+        "formula": "B6*B4",
+        "isError": false
+      },
+      {
+        "address": "C7",
+        "value": "USD",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D7",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A8",
+        "value": "EBITDA",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B8",
+        "value": 360000,
+        "formula": "B7-B5",
+        "isError": false
+      },
+      {
+        "address": "C8",
+        "value": "USD",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D8",
+        "value": "Scenario output",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A9",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B9",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C9",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D9",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A10",
+        "value": "Assets",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B10",
+        "value": "USD",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C10",
+        "value": "Funding",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D10",
+        "value": "USD",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A11",
+        "value": "Cash",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B11",
+        "value": 300000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C11",
+        "value": "Debt",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D11",
+        "value": 400000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A12",
+        "value": "Receivables",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B12",
+        "value": 500000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C12",
+        "value": "Equity",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D12",
+        "value": 250000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A13",
+        "value": "Equipment",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B13",
+        "value": 200000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C13",
+        "value": "Retained earnings",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D13",
+        "value": 350000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A14",
+        "value": "Total assets",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B14",
+        "value": 1000000,
+        "formula": "SUM(B11:B13)",
+        "isError": false
+      },
+      {
+        "address": "C14",
+        "value": "Total funding",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D14",
+        "value": 1000000,
+        "formula": "SUM(D11:D13)",
+        "isError": false
+      },
+      {
+        "address": "A15",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B15",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C15",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D15",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A16",
+        "value": "Pattern check: row 19 intentionally wrong",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B16",
+        "value": "Quantity",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C16",
+        "value": "Price",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D16",
+        "value": "Amount",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A17",
+        "value": "Product A",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B17",
+        "value": 10,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C17",
+        "value": 50,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D17",
+        "value": 500,
+        "formula": "B17*C17",
+        "isError": false
+      },
+      {
+        "address": "A18",
+        "value": "Product B",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B18",
+        "value": 20,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C18",
+        "value": 50,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D18",
+        "value": 1000,
+        "formula": "B18*C18",
+        "isError": false
+      },
+      {
+        "address": "A19",
+        "value": "Product C: intentional formula issue",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B19",
+        "value": 30,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C19",
+        "value": 50,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D19",
+        "value": 80,
+        "formula": "B19+C19",
+        "isError": false
+      },
+      {
+        "address": "A20",
+        "value": "Product D",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B20",
+        "value": 40,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C20",
+        "value": 50,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D20",
+        "value": 2000,
+        "formula": "B20*C20",
+        "isError": false
+      }
+    ],
+    "dependencies": [
+      {
+        "address": "B6",
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B2",
+            "sheet": "Model",
+            "address": "B2"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!B3",
+            "sheet": "Model",
+            "address": "B3"
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "B7",
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B6",
+            "sheet": "Model",
+            "address": "B6"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!B4",
+            "sheet": "Model",
+            "address": "B4"
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "B8",
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B7",
+            "sheet": "Model",
+            "address": "B7"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!B5",
+            "sheet": "Model",
+            "address": "B5"
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "B14",
+        "precedents": [
+          {
+            "kind": "range",
+            "sheet": "Model",
+            "ref": "B11:B13",
+            "startRow": 11,
+            "startCol": 2,
+            "endRow": 13,
+            "endCol": 2
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "D14",
+        "precedents": [
+          {
+            "kind": "range",
+            "sheet": "Model",
+            "ref": "D11:D13",
+            "startRow": 11,
+            "startCol": 4,
+            "endRow": 13,
+            "endCol": 4
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "D17",
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B17",
+            "sheet": "Model",
+            "address": "B17"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!C17",
+            "sheet": "Model",
+            "address": "C17"
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "D18",
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B18",
+            "sheet": "Model",
+            "address": "B18"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!C18",
+            "sheet": "Model",
+            "address": "C18"
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "D19",
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B19",
+            "sheet": "Model",
+            "address": "B19"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!C19",
+            "sheet": "Model",
+            "address": "C19"
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "D20",
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B20",
+            "sheet": "Model",
+            "address": "B20"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!C20",
+            "sheet": "Model",
+            "address": "C20"
+          }
+        ],
+        "truncated": false
+      }
+    ],
+    "limits": {
+      "selectedCells": 500,
+      "precedentsPerFormula": 100
+    },
+    "action": "context",
+    "elapsedMs": 8.07,
+    "evidence": {
+      "generatedAt": "2026-09-19T21:11:29.824Z",
+      "source": "saved-workbook",
+      "unsavedCanvasChangesIncluded": false,
+      "request": {
+        "action": "context",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "range": "A1:D20"
+      }
+    }
+  },
+  "warm": {
+    "status": "ok",
+    "workbook": "consultant-example.xlsx",
+    "sheet": "Model",
+    "range": "A1:D20",
+    "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+    "cache": {
+      "hit": true,
+      "entries": 1
+    },
+    "provenance": "Saved workbook bytes; no recalculation or source changes.",
+    "coverage": {
+      "complete": false,
+      "limitations": [
+        "As-saved values only; unsaved canvas edits and recalculation are not included.",
+        "Privacy scan checks all saved text labels and SSN-shaped values within the analysis bound. Unlabelled numeric birthdates cannot be identified.",
+        "Dependency references use the existing A1 parser; dynamic references and unsupported shapes are not calculated."
+      ]
+    },
+    "cells": [
+      {
+        "address": "A1",
+        "value": "Synthetic consulting model",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B1",
+        "value": "Value",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C1",
+        "value": "Units",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D1",
+        "value": "Illustrative only",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A2",
+        "value": "Revenue",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B2",
+        "value": 1000000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C2",
+        "value": "USD",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D2",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A3",
+        "value": "Revenue growth",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B3",
+        "value": 0.1,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C3",
+        "value": "fraction",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D3",
+        "value": "Scenario input",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A4",
+        "value": "Gross margin",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B4",
+        "value": 0.6,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C4",
+        "value": "fraction",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D4",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A5",
+        "value": "Operating costs",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B5",
+        "value": 300000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C5",
+        "value": "USD",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D5",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A6",
+        "value": "Projected revenue",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B6",
+        "value": 1100000,
+        "formula": "B2*(1+B3)",
+        "isError": false
+      },
+      {
+        "address": "C6",
+        "value": "USD",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D6",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A7",
+        "value": "Gross profit",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B7",
+        "value": 660000,
+        "formula": "B6*B4",
+        "isError": false
+      },
+      {
+        "address": "C7",
+        "value": "USD",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D7",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A8",
+        "value": "EBITDA",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B8",
+        "value": 360000,
+        "formula": "B7-B5",
+        "isError": false
+      },
+      {
+        "address": "C8",
+        "value": "USD",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D8",
+        "value": "Scenario output",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A9",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B9",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C9",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D9",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A10",
+        "value": "Assets",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B10",
+        "value": "USD",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C10",
+        "value": "Funding",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D10",
+        "value": "USD",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A11",
+        "value": "Cash",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B11",
+        "value": 300000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C11",
+        "value": "Debt",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D11",
+        "value": 400000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A12",
+        "value": "Receivables",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B12",
+        "value": 500000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C12",
+        "value": "Equity",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D12",
+        "value": 250000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A13",
+        "value": "Equipment",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B13",
+        "value": 200000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C13",
+        "value": "Retained earnings",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D13",
+        "value": 350000,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A14",
+        "value": "Total assets",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B14",
+        "value": 1000000,
+        "formula": "SUM(B11:B13)",
+        "isError": false
+      },
+      {
+        "address": "C14",
+        "value": "Total funding",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D14",
+        "value": 1000000,
+        "formula": "SUM(D11:D13)",
+        "isError": false
+      },
+      {
+        "address": "A15",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B15",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C15",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D15",
+        "value": null,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A16",
+        "value": "Pattern check: row 19 intentionally wrong",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B16",
+        "value": "Quantity",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C16",
+        "value": "Price",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D16",
+        "value": "Amount",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "A17",
+        "value": "Product A",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B17",
+        "value": 10,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C17",
+        "value": 50,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D17",
+        "value": 500,
+        "formula": "B17*C17",
+        "isError": false
+      },
+      {
+        "address": "A18",
+        "value": "Product B",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B18",
+        "value": 20,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C18",
+        "value": 50,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D18",
+        "value": 1000,
+        "formula": "B18*C18",
+        "isError": false
+      },
+      {
+        "address": "A19",
+        "value": "Product C: intentional formula issue",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B19",
+        "value": 30,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C19",
+        "value": 50,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D19",
+        "value": 80,
+        "formula": "B19+C19",
+        "isError": false
+      },
+      {
+        "address": "A20",
+        "value": "Product D",
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "B20",
+        "value": 40,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "C20",
+        "value": 50,
+        "formula": null,
+        "isError": false
+      },
+      {
+        "address": "D20",
+        "value": 2000,
+        "formula": "B20*C20",
+        "isError": false
+      }
+    ],
+    "dependencies": [
+      {
+        "address": "B6",
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B2",
+            "sheet": "Model",
+            "address": "B2"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!B3",
+            "sheet": "Model",
+            "address": "B3"
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "B7",
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B6",
+            "sheet": "Model",
+            "address": "B6"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!B4",
+            "sheet": "Model",
+            "address": "B4"
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "B8",
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B7",
+            "sheet": "Model",
+            "address": "B7"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!B5",
+            "sheet": "Model",
+            "address": "B5"
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "B14",
+        "precedents": [
+          {
+            "kind": "range",
+            "sheet": "Model",
+            "ref": "B11:B13",
+            "startRow": 11,
+            "startCol": 2,
+            "endRow": 13,
+            "endCol": 2
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "D14",
+        "precedents": [
+          {
+            "kind": "range",
+            "sheet": "Model",
+            "ref": "D11:D13",
+            "startRow": 11,
+            "startCol": 4,
+            "endRow": 13,
+            "endCol": 4
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "D17",
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B17",
+            "sheet": "Model",
+            "address": "B17"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!C17",
+            "sheet": "Model",
+            "address": "C17"
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "D18",
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B18",
+            "sheet": "Model",
+            "address": "B18"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!C18",
+            "sheet": "Model",
+            "address": "C18"
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "D19",
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B19",
+            "sheet": "Model",
+            "address": "B19"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!C19",
+            "sheet": "Model",
+            "address": "C19"
+          }
+        ],
+        "truncated": false
+      },
+      {
+        "address": "D20",
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B20",
+            "sheet": "Model",
+            "address": "B20"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!C20",
+            "sheet": "Model",
+            "address": "C20"
+          }
+        ],
+        "truncated": false
+      }
+    ],
+    "limits": {
+      "selectedCells": 500,
+      "precedentsPerFormula": 100
+    },
+    "action": "context",
+    "elapsedMs": 1.7,
+    "evidence": {
+      "generatedAt": "2026-09-19T21:11:29.828Z",
+      "source": "saved-workbook",
+      "unsavedCanvasChangesIncluded": false,
+      "request": {
+        "action": "context",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "range": "A1:D20"
+      }
+    }
+  },
+  "explain": {
+    "status": "ok",
+    "workbook": "consultant-example.xlsx",
+    "sheet": "Model",
+    "range": "B8",
+    "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+    "cache": {
+      "hit": true,
+      "entries": 1
+    },
+    "provenance": "Saved workbook bytes; no recalculation or source changes.",
+    "coverage": {
+      "complete": false,
+      "limitations": [
+        "As-saved values only; unsaved canvas edits and recalculation are not included.",
+        "Privacy scan checks all saved text labels and SSN-shaped values within the analysis bound. Unlabelled numeric birthdates cannot be identified.",
+        "Dependency references use the existing A1 parser; dynamic references and unsupported shapes are not calculated."
+      ]
+    },
+    "target": {
+      "address": "B8",
+      "value": 360000,
+      "formula": "B7-B5",
+      "isError": false
+    },
+    "precedents": [
+      {
+        "kind": "cell",
+        "node": "Model!B7",
+        "sheet": "Model",
+        "address": "B7",
+        "cell": {
+          "address": "B7",
+          "value": 660000,
+          "formula": "B6*B4",
+          "isError": false
+        }
+      },
+      {
+        "kind": "cell",
+        "node": "Model!B5",
+        "sheet": "Model",
+        "address": "B5",
+        "cell": {
+          "address": "B5",
+          "value": 300000,
+          "formula": null,
+          "isError": false
+        }
+      }
+    ],
+    "dependents": [
+      "Model!G4",
+      "Model!G5"
+    ],
+    "truncated": false,
+    "trace": [
+      {
+        "node": "Model!B8",
+        "depth": 0,
+        "formula": "B7-B5",
+        "value": 360000,
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B7",
+            "sheet": "Model",
+            "address": "B7"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!B5",
+            "sheet": "Model",
+            "address": "B5"
+          }
+        ]
+      },
+      {
+        "node": "Model!B7",
+        "depth": 1,
+        "formula": "B6*B4",
+        "value": 660000,
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B6",
+            "sheet": "Model",
+            "address": "B6"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!B4",
+            "sheet": "Model",
+            "address": "B4"
+          }
+        ]
+      },
+      {
+        "node": "Model!B5",
+        "depth": 1,
+        "formula": null,
+        "value": 300000,
+        "precedents": []
+      },
+      {
+        "node": "Model!B6",
+        "depth": 2,
+        "formula": "B2*(1+B3)",
+        "value": 1100000,
+        "precedents": [
+          {
+            "kind": "cell",
+            "node": "Model!B2",
+            "sheet": "Model",
+            "address": "B2"
+          },
+          {
+            "kind": "cell",
+            "node": "Model!B3",
+            "sheet": "Model",
+            "address": "B3"
+          }
+        ]
+      },
+      {
+        "node": "Model!B4",
+        "depth": 2,
+        "formula": null,
+        "value": 0.6,
+        "precedents": []
+      },
+      {
+        "node": "Model!B2",
+        "depth": 3,
+        "formula": null,
+        "value": 1000000,
+        "precedents": []
+      },
+      {
+        "node": "Model!B3",
+        "depth": 3,
+        "formula": null,
+        "value": 0.1,
+        "precedents": []
+      }
+    ],
+    "traversal": {
+      "maxHops": 6,
+      "maxNodes": 100,
+      "truncated": false,
+      "reasons": [],
+      "cycles": [],
+      "unexpandedRanges": 0,
+      "unresolved": [],
+      "cycleCandidates": [],
+      "basis": "Bounded upstream A1 traversal. Range operands remain unexpanded rectangles; their internal chains are not traced. Repeated nodes are visited once. Cycle edges are detected along discovered paths; this is not an exhaustive cycle proof."
+    },
+    "unresolved": [],
+    "action": "explain",
+    "elapsedMs": 1.53,
+    "evidence": {
+      "generatedAt": "2026-09-19T21:11:29.832Z",
+      "source": "saved-workbook",
+      "unsavedCanvasChangesIncluded": false,
+      "request": {
+        "action": "explain",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "address": "B8"
+      }
+    }
+  },
+  "audit": {
+    "status": "ok",
+    "workbook": "consultant-example.xlsx",
+    "sheet": "Model",
+    "range": "A1:D20",
+    "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+    "cache": {
+      "hit": true,
+      "entries": 1
+    },
+    "provenance": "Saved workbook bytes; no recalculation or source changes.",
+    "coverage": {
+      "complete": false,
+      "limitations": [
+        "As-saved values only; unsaved canvas edits and recalculation are not included.",
+        "Privacy scan checks all saved text labels and SSN-shaped values within the analysis bound. Unlabelled numeric birthdates cannot be identified.",
+        "Dependency references use the existing A1 parser; dynamic references and unsupported shapes are not calculated."
+      ]
+    },
+    "findings": [
+      {
+        "kind": "formula-pattern",
+        "address": "D19",
+        "severity": "review",
+        "message": "This arithmetic formula differs from the matching relative-reference pattern immediately above and below. Review the exception; it is not proof of an error.",
+        "peers": [
+          "D18",
+          "D20"
+        ]
+      }
+    ],
+    "basis": "Review leads only. Pattern comparison covers vertical adjacent arithmetic A1 formulas, including absolute and mixed references. Functions, names, cross-sheet references, blanks, and hidden shared-formula followers are not classified.",
+    "action": "audit",
+    "elapsedMs": 1.52,
+    "evidence": {
+      "generatedAt": "2026-09-19T21:11:29.835Z",
+      "source": "saved-workbook",
+      "unsavedCanvasChangesIncluded": false,
+      "request": {
+        "action": "audit",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "range": "A1:D20"
+      }
+    }
+  },
+  "tie": {
+    "status": "balanced",
+    "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+    "sheet": "Model",
+    "left": {
+      "range": "B11:B13",
+      "sum": 1000000,
+      "count": 3,
+      "blankCount": 0
+    },
+    "right": {
+      "range": "D11:D13",
+      "sum": 1000000,
+      "count": 3,
+      "blankCount": 0
+    },
+    "difference": 0,
+    "tolerance": 0.01,
+    "blankPolicy": "reject",
+    "basis": "saved-cached-values",
+    "sourceUnchanged": true,
+    "action": "reconcile",
+    "workbook": "consultant-example.xlsx",
+    "elapsedMs": 3.27,
+    "evidence": {
+      "generatedAt": "2026-09-19T21:11:29.841Z",
+      "source": "saved-workbook",
+      "unsavedCanvasChangesIncluded": false,
+      "request": {
+        "action": "reconcile",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "left": "B11:B13",
+        "right": "D11:D13",
+        "tolerance": 0.01,
+        "blankPolicy": "reject"
+      }
+    }
+  },
+  "mismatch": {
+    "status": "difference",
+    "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+    "sheet": "Model",
+    "left": {
+      "range": "B11:B12",
+      "sum": 800000,
+      "count": 2,
+      "blankCount": 0
+    },
+    "right": {
+      "range": "D11:D13",
+      "sum": 1000000,
+      "count": 3,
+      "blankCount": 0
+    },
+    "difference": -200000,
+    "tolerance": 0.01,
+    "blankPolicy": "reject",
+    "basis": "saved-cached-values",
+    "sourceUnchanged": true,
+    "action": "reconcile",
+    "workbook": "consultant-example.xlsx",
+    "elapsedMs": 2.88,
+    "evidence": {
+      "generatedAt": "2026-09-19T21:11:29.845Z",
+      "source": "saved-workbook",
+      "unsavedCanvasChangesIncluded": false,
+      "request": {
+        "action": "reconcile",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "left": "B11:B12",
+        "right": "D11:D13",
+        "tolerance": 0.01,
+        "blankPolicy": "reject"
+      }
+    }
+  },
+  "scenario": {
+    "status": "calculated",
+    "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+    "sheet": "Model",
+    "input": "B3",
+    "baseline": 0.1,
+    "outputs": [
+      "B8"
+    ],
+    "cases": [
+      {
+        "input": 0,
+        "outputs": {
+          "B8": 300000
+        }
+      },
+      {
+        "input": 0.1,
+        "outputs": {
+          "B8": 360000
+        }
+      },
+      {
+        "input": 0.2,
+        "outputs": {
+          "B8": 420000
+        }
+      }
+    ],
+    "sourceUnchanged": true,
+    "basis": "disposable-engine",
+    "action": "scenario",
+    "workbook": "consultant-example.xlsx",
+    "elapsedMs": 430.18,
+    "evidence": {
+      "generatedAt": "2026-09-19T21:11:30.277Z",
+      "source": "saved-workbook",
+      "unsavedCanvasChangesIncluded": false,
+      "request": {
+        "action": "scenario",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "input": "B3",
+        "values": [
+          0,
+          0.1,
+          0.2
+        ],
+        "outputs": [
+          "B8"
+        ],
+        "expectedRevision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd"
+      }
+    }
+  },
+  "sensitivity": {
+    "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+    "sheet": "Model",
+    "sourceUnchanged": true,
+    "basis": "disposable-engine",
+    "status": "calculated",
+    "rowInput": "B3",
+    "colInput": "B4",
+    "output": "B8",
+    "rowValues": [
+      0,
+      0.1,
+      0.2
+    ],
+    "colValues": [
+      0.5,
+      0.6,
+      0.7
+    ],
+    "cases": [
+      {
+        "rowValue": 0,
+        "colValue": 0.5,
+        "output": 200000
+      },
+      {
+        "rowValue": 0,
+        "colValue": 0.6,
+        "output": 300000
+      },
+      {
+        "rowValue": 0,
+        "colValue": 0.7,
+        "output": 400000
+      },
+      {
+        "rowValue": 0.1,
+        "colValue": 0.5,
+        "output": 250000
+      },
+      {
+        "rowValue": 0.1,
+        "colValue": 0.6,
+        "output": 360000
+      },
+      {
+        "rowValue": 0.1,
+        "colValue": 0.7,
+        "output": 470000
+      },
+      {
+        "rowValue": 0.2,
+        "colValue": 0.5,
+        "output": 300000
+      },
+      {
+        "rowValue": 0.2,
+        "colValue": 0.6,
+        "output": 420000
+      },
+      {
+        "rowValue": 0.2,
+        "colValue": 0.7,
+        "output": 540000
+      }
+    ],
+    "matrix": [
+      [
+        200000,
+        300000,
+        400000
+      ],
+      [
+        250000,
+        360000,
+        470000
+      ],
+      [
+        300000,
+        420000,
+        540000
+      ]
+    ],
+    "coverage": {
+      "complete": true,
+      "limitations": [
+        "Only the listed row and column combinations were tested; untested cases are outside this evidence.",
+        "Supported models are single-sheet and limited to local arithmetic plus SUM, MIN, MAX, AVERAGE, ABS, ROUND and IF.",
+        "Sensitivity results describe tested assumptions only; they are not forecasts and do not establish causation."
+      ]
+    },
+    "action": "sensitivity",
+    "workbook": "consultant-example.xlsx",
+    "elapsedMs": 542.19,
+    "evidence": {
+      "generatedAt": "2026-09-19T21:11:30.824Z",
+      "source": "saved-workbook",
+      "unsavedCanvasChangesIncluded": false,
+      "request": {
+        "action": "sensitivity",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "rowInput": "B3",
+        "rowValues": [
+          0,
+          0.1,
+          0.2
+        ],
+        "colInput": "B4",
+        "colValues": [
+          0.5,
+          0.6,
+          0.7
+        ],
+        "output": "B8"
+      }
+    }
+  },
+  "drivers": {
+    "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+    "sheet": "Model",
+    "sourceUnchanged": true,
+    "basis": "disposable-engine",
+    "status": "calculated",
+    "output": "B8",
+    "baseline": 360000,
+    "drivers": [
+      {
+        "cell": "B4",
+        "low": 0.5,
+        "high": 0.7,
+        "baselineInput": 0.6,
+        "lowOutput": 250000,
+        "highOutput": 470000,
+        "lowDelta": -110000,
+        "highDelta": 110000,
+        "span": 220000
+      },
+      {
+        "cell": "B3",
+        "low": 0,
+        "high": 0.2,
+        "baselineInput": 0.1,
+        "lowOutput": 300000,
+        "highOutput": 420000,
+        "lowDelta": -60000,
+        "highDelta": 60000,
+        "span": 120000
+      }
+    ],
+    "cases": [
+      {
+        "inputs": {},
+        "output": 360000
+      },
+      {
+        "inputs": {
+          "B3": 0
+        },
+        "output": 300000
+      },
+      {
+        "inputs": {
+          "B3": 0.2
+        },
+        "output": 420000
+      },
+      {
+        "inputs": {
+          "B4": 0.5
+        },
+        "output": 250000
+      },
+      {
+        "inputs": {
+          "B4": 0.7
+        },
+        "output": 470000
+      }
+    ],
+    "coverage": {
+      "complete": true,
+      "limitations": [
+        "Only the listed low and high case for each driver was tested, with one input changed at a time.",
+        "Supported models are single-sheet and limited to local arithmetic plus SUM, MIN, MAX, AVERAGE, ABS, ROUND and IF.",
+        "Driver results describe tested assumptions only; they are not forecasts and do not establish causation."
+      ]
+    },
+    "action": "drivers",
+    "workbook": "consultant-example.xlsx",
+    "elapsedMs": 466.67,
+    "evidence": {
+      "generatedAt": "2026-09-19T21:11:31.292Z",
+      "source": "saved-workbook",
+      "unsavedCanvasChangesIncluded": false,
+      "request": {
+        "action": "drivers",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "inputs": [
+          {
+            "cell": "B3",
+            "low": 0,
+            "high": 0.2
+          },
+          {
+            "cell": "B4",
+            "low": 0.5,
+            "high": 0.7
+          }
+        ],
+        "output": "B8"
+      }
+    }
+  },
+  "goal": {
+    "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+    "sheet": "Model",
+    "sourceUnchanged": true,
+    "basis": "disposable-engine",
+    "status": "converged",
+    "solution": 0.19999998807907104,
+    "value": 419999.9928474426,
+    "residual": -0.007152557373046875,
+    "iterations": 24,
+    "cases": [
+      {
+        "input": 0,
+        "value": 300000,
+        "residual": -120000
+      },
+      {
+        "input": 1,
+        "value": 900000,
+        "residual": 480000
+      },
+      {
+        "input": 0.5,
+        "value": 600000,
+        "residual": 180000
+      },
+      {
+        "input": 0.25,
+        "value": 450000,
+        "residual": 30000
+      },
+      {
+        "input": 0.125,
+        "value": 375000,
+        "residual": -45000
+      },
+      {
+        "input": 0.1875,
+        "value": 412500,
+        "residual": -7500
+      },
+      {
+        "input": 0.21875,
+        "value": 431250,
+        "residual": 11250
+      },
+      {
+        "input": 0.203125,
+        "value": 421875,
+        "residual": 1875
+      },
+      {
+        "input": 0.1953125,
+        "value": 417187.5,
+        "residual": -2812.5
+      },
+      {
+        "input": 0.19921875,
+        "value": 419531.25,
+        "residual": -468.75
+      },
+      {
+        "input": 0.201171875,
+        "value": 420703.125,
+        "residual": 703.125
+      },
+      {
+        "input": 0.2001953125,
+        "value": 420117.1875,
+        "residual": 117.1875
+      },
+      {
+        "input": 0.19970703125,
+        "value": 419824.21875,
+        "residual": -175.78125
+      },
+      {
+        "input": 0.199951171875,
+        "value": 419970.703125,
+        "residual": -29.296875
+      },
+      {
+        "input": 0.2000732421875,
+        "value": 420043.9453125,
+        "residual": 43.9453125
+      },
+      {
+        "input": 0.20001220703125,
+        "value": 420007.32421875,
+        "residual": 7.32421875
+      },
+      {
+        "input": 0.199981689453125,
+        "value": 419989.013671875,
+        "residual": -10.986328125
+      },
+      {
+        "input": 0.1999969482421875,
+        "value": 419998.1689453125,
+        "residual": -1.8310546875
+      },
+      {
+        "input": 0.20000457763671875,
+        "value": 420002.74658203125,
+        "residual": 2.74658203125
+      },
+      {
+        "input": 0.20000076293945312,
+        "value": 420000.4577636719,
+        "residual": 0.457763671875
+      },
+      {
+        "input": 0.1999988555908203,
+        "value": 419999.3133544922,
+        "residual": -0.6866455078125
+      },
+      {
+        "input": 0.19999980926513672,
+        "value": 419999.88555908203,
+        "residual": -0.11444091796875
+      },
+      {
+        "input": 0.20000028610229492,
+        "value": 420000.17166137695,
+        "residual": 0.171661376953125
+      },
+      {
+        "input": 0.20000004768371582,
+        "value": 420000.0286102295,
+        "residual": 0.0286102294921875
+      },
+      {
+        "input": 0.19999992847442627,
+        "value": 419999.95708465576,
+        "residual": -0.04291534423828125
+      },
+      {
+        "input": 0.19999998807907104,
+        "value": 419999.9928474426,
+        "residual": -0.007152557373046875
+      }
+    ],
+    "input": "B3",
+    "output": "B8",
+    "target": 420000,
+    "lower": 0,
+    "upper": 1,
+    "tolerance": 0.01,
+    "method": "bracketed-bisection",
+    "scope": "local-bracket",
+    "coverage": {
+      "complete": true,
+      "limitations": [
+        "Only points evaluated inside the supplied bracket were tested; behavior outside that bracket is unknown.",
+        "Supported models are single-sheet and limited to local arithmetic plus SUM, MIN, MAX, AVERAGE, ABS, ROUND and IF.",
+        "A local bracket can contain multiple solutions or cross a discontinuity; convergence does not prove uniqueness or continuity.",
+        "The solution describes this saved model and tested assumptions only; it is not a forecast and does not establish causation."
+      ]
+    },
+    "action": "goalSeek",
+    "workbook": "consultant-example.xlsx",
+    "elapsedMs": 791.79,
+    "evidence": {
+      "generatedAt": "2026-09-19T21:11:32.086Z",
+      "source": "saved-workbook",
+      "unsavedCanvasChangesIncluded": false,
+      "request": {
+        "action": "goalSeek",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "input": "B3",
+        "output": "B8",
+        "target": 420000,
+        "lower": 0,
+        "upper": 1,
+        "tolerance": 0.01
+      }
+    }
+  },
+  "variance": {
+    "status": "calculated",
+    "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+    "sheet": "Model",
+    "baselineRange": "B11:B13",
+    "comparisonRange": "D11:D13",
+    "baselineTotal": 1000000,
+    "comparisonTotal": 1000000,
+    "difference": 0,
+    "residual": 0,
+    "rows": [
+      {
+        "baselineCell": "B11",
+        "comparisonCell": "D11",
+        "baseline": 300000,
+        "comparison": 400000,
+        "difference": 100000,
+        "percentChange": 33.33333333333333
+      },
+      {
+        "baselineCell": "B12",
+        "comparisonCell": "D12",
+        "baseline": 500000,
+        "comparison": 250000,
+        "difference": -250000,
+        "percentChange": -50
+      },
+      {
+        "baselineCell": "B13",
+        "comparisonCell": "D13",
+        "baseline": 200000,
+        "comparison": 350000,
+        "difference": 150000,
+        "percentChange": 75
+      }
+    ],
+    "alignment": "positional",
+    "basis": "saved-cached-values",
+    "sourceUnchanged": true,
+    "coverage": {
+      "complete": true,
+      "limitations": [
+        "Cells are paired by position, not matched by business labels. Confirm that the selected ranges are comparable.",
+        "Percentage change uses the absolute baseline; a zero baseline has no percentage.",
+        "Saved values only. Formula caches are not recalculated. A bridge explains arithmetic differences, not business causation."
+      ]
+    },
+    "action": "variance",
+    "workbook": "consultant-example.xlsx",
+    "elapsedMs": 2.07,
+    "evidence": {
+      "generatedAt": "2026-09-19T21:11:32.089Z",
+      "source": "saved-workbook",
+      "unsavedCanvasChangesIncluded": false,
+      "request": {
+        "action": "variance",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "baseline": "B11:B13",
+        "comparison": "D11:D13"
+      }
+    }
+  },
+  "checks": {
+    "status": "passed",
+    "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+    "sheet": "Model",
+    "checks": [
+      {
+        "label": "Funding",
+        "range": "B11:B13",
+        "operator": "equals",
+        "compareRange": "D11:D13",
+        "target": 1000000,
+        "tolerance": 0.01,
+        "actual": 1000000,
+        "difference": 0,
+        "passed": true
+      },
+      {
+        "label": "EBITDA floor",
+        "range": "B8",
+        "operator": "at-least",
+        "target": 300000,
+        "tolerance": 0.01,
+        "actual": 360000,
+        "difference": 60000,
+        "passed": true
+      }
+    ],
+    "passed": 2,
+    "failed": 0,
+    "basis": "saved-cached-values",
+    "sourceUnchanged": true,
+    "coverage": {
+      "complete": true,
+      "limitations": [
+        "Only the explicitly configured checks were evaluated. Passing is not a correctness certificate or audit opinion.",
+        "Each range is summed; blanks, text, errors, and missing formula caches prevent the entire pack from running.",
+        "Saved values only. Formula caches are not recalculated."
+      ]
+    },
+    "action": "checks",
+    "workbook": "consultant-example.xlsx",
+    "elapsedMs": 2.21,
+    "evidence": {
+      "generatedAt": "2026-09-19T21:11:32.093Z",
+      "source": "saved-workbook",
+      "unsavedCanvasChangesIncluded": false,
+      "request": {
+        "action": "checks",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "checks": [
+          {
+            "label": "Funding",
+            "range": "B11:B13",
+            "operator": "equals",
+            "compareRange": "D11:D13"
+          },
+          {
+            "label": "EBITDA floor",
+            "range": "B8",
+            "operator": "at-least",
+            "target": 300000
+          }
+        ]
+      }
+    }
+  },
+  "failedCheck": {
+    "status": "failed",
+    "revision": "3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd",
+    "sheet": "Model",
+    "checks": [
+      {
+        "label": "Deliberate failure",
+        "range": "B8",
+        "operator": "at-most",
+        "target": 300000,
+        "tolerance": 0.01,
+        "actual": 360000,
+        "difference": 60000,
+        "passed": false
+      }
+    ],
+    "passed": 0,
+    "failed": 1,
+    "basis": "saved-cached-values",
+    "sourceUnchanged": true,
+    "coverage": {
+      "complete": true,
+      "limitations": [
+        "Only the explicitly configured checks were evaluated. Passing is not a correctness certificate or audit opinion.",
+        "Each range is summed; blanks, text, errors, and missing formula caches prevent the entire pack from running.",
+        "Saved values only. Formula caches are not recalculated."
+      ]
+    },
+    "action": "checks",
+    "workbook": "consultant-example.xlsx",
+    "elapsedMs": 1.94,
+    "evidence": {
+      "generatedAt": "2026-09-19T21:11:32.096Z",
+      "source": "saved-workbook",
+      "unsavedCanvasChangesIncluded": false,
+      "request": {
+        "action": "checks",
+        "name": "consultant-example.xlsx",
+        "sheet": "Model",
+        "checks": [
+          {
+            "label": "Deliberate failure",
+            "range": "B8",
+            "operator": "at-most",
+            "target": 300000
+          }
+        ]
+      }
+    }
+  }
+}

@@ -20,6 +20,7 @@ import { resolveCanvasAdapter, type AdapterProbe, type CanvasSession } from './a
 /** How often coalesced presence reports leave the app, and commands are polled. */
 const CONTEXT_THROTTLE_MS = 300;
 const COMMAND_POLL_MS = 1500;
+type RevealCommand = { id: string; range: string; sheet: string | null };
 
 export function App() {
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -31,6 +32,10 @@ export function App() {
   const [status, setStatus] = useState('starting');
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Navigation has its own failure channel: a later successful reveal clears
+  // this operational error without erasing a save or workbook error.
+  const [navigationError, setNavigationError] = useState<string | null>(null);
+  const [lastReveal, setLastReveal] = useState<{ id: string; range: string; sheet: string | null; status: 'applied' | 'failed' } | null>(null);
   const [report, setReport] = useState<ValidationReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [fidelity, setFidelity] = useState<FidelityReport | null>(null);
@@ -45,6 +50,51 @@ export function App() {
   // next open awaits its teardown before starting, so switching from A to B
   // can never leave A's presence behind.
   const contextOwnerRef = useRef<{ file: string; epoch: number } | null>(null);
+
+  const executeReveal = useCallback(async (command: RevealCommand) => {
+    const live = sessionRef.current;
+    if (!live?.reveal) {
+      setNavigationError(`Could not show ${command.sheet ? `${command.sheet}!` : ''}${command.range}: the canvas is not ready for navigation.`);
+      setLastReveal({ ...command, status: 'failed' });
+      return false;
+    }
+    try {
+      await live.reveal(command.range, command.sheet);
+      // The workbook could have switched while the engine was navigating.
+      // Its completion is no longer evidence about the current canvas.
+      if (sessionRef.current !== live) return false;
+      setNavigationError(null);
+      setLastReveal({ ...command, status: 'applied' });
+      return true;
+    } catch (cause) {
+      if (sessionRef.current !== live) return false;
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      setNavigationError(`Could not show ${command.sheet ? `${command.sheet}!` : ''}${command.range}: ${detail}`);
+      setLastReveal({ ...command, status: 'failed' });
+      return false;
+    }
+  }, []);
+
+  // Evidence links in the financial workbench navigate their own embedded
+  // canvas directly. Server-queued reveals remain shared, one-consumer agent
+  // commands; without this target, another canvas may drain a human link first.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent<unknown>) => {
+      if (event.origin !== window.location.origin || window.parent === window || event.source !== window.parent) return;
+      const message = event.data;
+      if (!message || typeof message !== 'object' || !('type' in message) || message.type !== 'mog:reveal'
+        || !('id' in message) || typeof message.id !== 'string' || !('range' in message) || typeof message.range !== 'string'
+        || message.range.length === 0 || message.range.length > 1_000 || !('sheet' in message)
+        || (message.sheet !== null && typeof message.sheet !== 'string') || !('workbook' in message)
+        || message.workbook !== file) return;
+      const command: RevealCommand = { id: message.id, range: message.range, sheet: message.sheet };
+      void executeReveal(command).then((applied) => {
+        window.parent.postMessage({ type: 'mog:reveal-result', id: command.id, status: applied ? 'applied' : 'failed' }, event.origin);
+      });
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [executeReveal, file]);
 
   useEffect(() => {
     getConfig()
@@ -73,6 +123,8 @@ export function App() {
     if (!container) return;
 
     setError(null);
+    setNavigationError(null);
+    setLastReveal(null);
     setReport(null);
     setDirty(false);
     setFidelity(null);
@@ -201,13 +253,14 @@ export function App() {
         pollTimer = setInterval(() => {
           void fetchCanvasCommands(file)
             .then(async (commands) => {
-              const live = sessionRef.current;
-              if (stale || !live?.reveal || commands.length === 0) return;
+              if (stale || commands.length === 0) return;
               // Only the newest reveal matters — intermediate ones are history.
               const last = commands[commands.length - 1];
-              await live.reveal(last.range, last.sheet);
+              if (!stale) await executeReveal(last);
             })
-            .catch(() => undefined);
+            .catch((cause) => {
+              if (!stale) setNavigationError(`Could not receive canvas navigation: ${cause instanceof Error ? cause.message : String(cause)}`);
+            });
         }, COMMAND_POLL_MS);
       } catch (cause) {
         if (!stale) {
@@ -229,7 +282,7 @@ export function App() {
         void clearContext(file, lastEpoch).catch(() => undefined);
       }
     };
-  }, [file]);
+  }, [file, executeReveal]);
 
   const run = useCallback(async (label: string, action: () => Promise<void>) => {
     setBusy(true);
@@ -313,10 +366,23 @@ export function App() {
             {probe ? probe.label : 'resolving adapter…'}
           </span>
           <span className="status">{status}</span>
+          {lastReveal && (
+            <span
+              className="status"
+              data-testid="reveal-status"
+              data-reveal-id={lastReveal.id}
+              data-reveal-range={lastReveal.range}
+              data-reveal-sheet={lastReveal.sheet ?? ''}
+              data-reveal-status={lastReveal.status}
+            >
+              {lastReveal.status === 'applied' ? 'revealed' : 'reveal failed'} {lastReveal.sheet ? `${lastReveal.sheet}!` : ''}{lastReveal.range}
+            </span>
+          )}
         </div>
       </header>
 
       {error && <pre className="error">{error}</pre>}
+      {navigationError && <pre className="error" data-testid="reveal-error">{navigationError}</pre>}
 
       {(profile || profileError) && (
         <section className="report shape">
