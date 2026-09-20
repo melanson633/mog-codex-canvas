@@ -37,6 +37,8 @@ import type { Plugin } from 'vite';
 import { createAgentTasks, createAgentContext, type AgentTaskState } from './agent-tasks.ts';
 import { createAnalystTools } from './analyst-tools.ts';
 import { ensureConsultantExample } from './consultant-example.ts';
+import { navigateWorkbook } from './workbook-navigator.ts';
+import { classifyReviewIntent, reviewSpecialistCapability } from './review-specialist.ts';
 import {
   WorkbookError,
   createWorkbookService,
@@ -192,6 +194,20 @@ export function createBridgeHandler(options: FileBridgeOptions): BridgeHandler {
         // Byte-first shape read: milliseconds, engine-free, truth of the last
         // save. This is what the app renders while the canvas hydrates.
         return sendJson(res, 200, await service.profile(name));
+      }
+
+      if (url.pathname === '/api/workbook-page' && req.method === 'GET') {
+        if (!name) throw new WorkbookError('invalid-path', 'Missing "path" query parameter');
+        const { bytes, revision } = await service.read(name);
+        const page = navigateWorkbook(bytes, { sheet: url.searchParams.get('sheet') ?? undefined, range: url.searchParams.get('range') ?? undefined });
+        if (page.status !== 'ok') return sendJson(res, 400, { error: page.status, message: page.reason });
+        return sendJson(res, 200, { ...page, revision, limitations: [page.notice, 'Number formats are not applied; dates may appear as Excel serial numbers. Shared formula followers are identified but not expanded.'] });
+      }
+      if (url.pathname === '/api/review-specialist' && req.method === 'GET') return sendJson(res, 200, reviewSpecialistCapability());
+      if (url.pathname === '/api/review-specialist' && req.method === 'POST') {
+        const body = JSON.parse((await readBody(req)).toString('utf8'));
+        if (!body || typeof body.message !== 'string' || Object.keys(body).some(key => key !== 'message')) throw new Error('Send only a message to the review specialist.');
+        return sendJson(res, 200, await classifyReviewIntent(body.message));
       }
 
       if (url.pathname === '/api/workbook' && req.method === 'PUT') {

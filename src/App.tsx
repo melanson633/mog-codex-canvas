@@ -16,6 +16,8 @@ import {
   type WorkbookProfileResponse,
 } from './api';
 import { resolveCanvasAdapter, type AdapterProbe, type CanvasSession } from './adapters';
+import { SavedWorkbookNavigator } from './SavedWorkbookNavigator';
+import { needsSavedView } from './workbook-capacity';
 
 /** How often coalesced presence reports leave the app, and commands are polled. */
 const CONTEXT_THROTTLE_MS = 300;
@@ -46,6 +48,7 @@ export function App() {
   // Byte-first shape of the saved file — answers in milliseconds while the
   // canvas renderer may take minutes to hydrate the same bytes.
   const [profile, setProfile] = useState<WorkbookProfileResponse | null>(null);
+  const [savedView, setSavedView] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   // Non-null while presence coordination is unhealthy: agents cannot see where
   // the human is, so the occupied-cell interlock is running blind.
@@ -84,6 +87,7 @@ export function App() {
   // commands; without this target, another canvas may drain a human link first.
   useEffect(() => {
     const onMessage = (event: MessageEvent<unknown>) => {
+      if (savedView) return; // The saved-page navigator acknowledges its own reads.
       if (event.origin !== window.location.origin || window.parent === window || event.source !== window.parent) return;
       const message = event.data;
       if (!message || typeof message !== 'object' || !('type' in message) || message.type !== 'mog:reveal'
@@ -98,7 +102,7 @@ export function App() {
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [executeReveal, file]);
+  }, [executeReveal, file, savedView]);
 
   useEffect(() => {
     getConfig()
@@ -134,6 +138,8 @@ export function App() {
     setFidelity(null);
     setCoordWarning(null);
     setProfile(null);
+    setSavedView(false);
+    setProbe(null);
     setProfileError(null);
     setCanvasReady(false);
     setStatus('loading workbook');
@@ -143,7 +149,8 @@ export function App() {
     // canvas open below. The panel renders in milliseconds; the renderer may
     // take minutes on the same bytes. An unreadable file arrives as a typed
     // result and renders as such — unknown is never shown as empty.
-    void fetchProfile(file).then(
+    const profilePromise = fetchProfile(file);
+    void profilePromise.then(
       (shape) => {
         if (!stale) setProfile(shape);
       },
@@ -207,6 +214,15 @@ export function App() {
       }
 
       try {
+        // Preflight before importing or hydrating the full spreadsheet engine.
+        // A compressed file's byte size alone does not describe its runtime cost.
+        const shape = await profilePromise;
+        if (stale) return;
+        if (shape.profile.status !== 'profiled') throw new Error(`Cannot safely open this workbook: ${shape.profile.reason}`);
+        if (needsSavedView(shape.profile)) {
+          setSavedView(true); setStatus('saved workbook navigator'); setCanvasReady(true);
+          return;
+        }
         // The browser engine and the saved workbook have no dependency on one
         // another. Starting both lets disk I/O disappear behind module load.
         const adapterPromise = resolveCanvasAdapter();
@@ -311,7 +327,8 @@ export function App() {
 
   const onSave = () =>
     run('save', async () => {
-      await sessionRef.current?.save();
+      if (!sessionRef.current) throw new Error('No editable canvas is open.');
+      await sessionRef.current.save();
       setStatus('saved to disk');
     });
 
@@ -336,7 +353,7 @@ export function App() {
       setStatus(`screenshot written: ${target}`);
     });
 
-  const canEdit = probe?.capabilities.liveCanvas ?? false;
+  const canEdit = !savedView && canvasReady && !!sessionRef.current && (probe?.capabilities.liveCanvas ?? false);
   // ?compact=1 slims the chrome for multi-pane embedding (compare.html).
   const compact = new URLSearchParams(window.location.search).get('compact') === '1';
   const embedded = new URLSearchParams(window.location.search).get('embedded') === '1';
@@ -365,7 +382,7 @@ export function App() {
           <button onClick={onSave} disabled={busy || !canEdit}>
             Save
           </button>
-          <button onClick={onVerify} disabled={busy || !file}>
+          <button onClick={onVerify} disabled={busy || !file || savedView}>
             Verify
           </button>
           <button onClick={onScreenshot} disabled={busy || !canEdit}>
@@ -396,7 +413,7 @@ export function App() {
       {error && <pre className="error">{error}</pre>}
       {navigationError && <pre className="error" data-testid="reveal-error">{navigationError}</pre>}
 
-      {(profile || profileError) && (
+      {!savedView && (profile || profileError) && (
         <section className="report shape">
           <div className="report-head">
             <strong>Saved-file shape</strong>
@@ -457,7 +474,8 @@ export function App() {
       )}
 
       <div className="canvas-stage">
-        <div className="canvas" ref={canvasRef} data-startup-phase={status} data-canvas-ready={canvasReady} />
+        <div className="canvas" hidden={savedView} ref={canvasRef} data-startup-phase={status} data-canvas-ready={canvasReady} />
+        {savedView && file && profile?.profile.status === 'profiled' && <SavedWorkbookNavigator key={file} name={file} profile={profile.profile} />}
         {!canvasReady && file && !error && probe?.available !== false && (
           <div className="canvas-loading" role="status" aria-live="polite">
             <strong>Opening {file}</strong>

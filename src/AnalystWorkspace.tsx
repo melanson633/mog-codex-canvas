@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useId, useCallback } from 'react';
 
-import { AgentDesk } from './AgentDesk';
+import { AgentDesk, type AttachedEvidence } from './AgentDesk';
 import { DecisionFields, DecisionResults, decisionModes, decisionPayload, initialRules, type CheckRule, type DecisionAction } from './DecisionDesk';
 import { downloadFile, evidenceBrief, type EvidenceEntry } from './evidence-brief';
 type Action = DecisionAction | 'context' | 'explain' | 'audit' | 'reconcile' | 'scenario';
@@ -48,6 +48,9 @@ function resultTitle(result: Result, decisionLabel?: string) {
 
 export function AnalystWorkspace({ initialFile = '', availableSlots = 4, onOpen, onStatus }: { initialFile?: string; availableSlots?: number; onOpen?: (name: string) => void; onStatus?: (name: string, dirty: boolean, busy: boolean) => void }) {
   const uniqueId = useId();
+  const [attachedEvidence, setAttachedEvidence] = useState<AttachedEvidence>();
+  const [savedSelection, setSavedSelection] = useState<{ sheet: string; range: string }>();
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [applying, setApplying] = useState(false);
   const [agentWorking, setAgentWorking] = useState(false);
   const [canvasVersion, setCanvasVersion] = useState(0);
@@ -123,7 +126,7 @@ export function AnalystWorkspace({ initialFile = '', availableSlots = 4, onOpen,
     if (revealTimeout.current) clearTimeout(revealTimeout.current);
     revealTimeout.current = null;
     pendingRevealId.current = null;
-    setResult(null); setError(''); setDirty(false); setSheets([]); requestId.current++;
+    setSavedSelection(undefined); setAttachedEvidence(undefined); setResult(null); setError(''); setDirty(false); setSheets([]); requestId.current++;
     if (!file) return;
     request<{ profile: { status: string; sheets?: { name: string }[] } }>(`/api/profile?path=${encodeURIComponent(file)}`).then(data => {
       if (!active) return;
@@ -139,13 +142,18 @@ export function AnalystWorkspace({ initialFile = '', availableSlots = 4, onOpen,
     const onMessage = (event: MessageEvent<unknown>) => {
       if (event.origin !== window.location.origin || event.source !== canvasFrame.current?.contentWindow) return;
       const message = event.data;
+      if (message && typeof message === 'object' && 'type' in message && message.type === 'mog:navigator-selection'
+        && 'workbook' in message && message.workbook === fileRef.current && 'sheet' in message && typeof message.sheet === 'string'
+        && 'range' in message && typeof message.range === 'string') {
+        setSavedSelection({ sheet: message.sheet, range: message.range }); setSheet(message.sheet); setRange(message.range); setNotice(`Selected ${message.sheet}!${message.range} for discussion.`); return;
+      }
       if (!message || typeof message !== 'object' || !('type' in message) || message.type !== 'mog:reveal-result'
         || !('id' in message) || message.id !== pendingRevealId.current || !('status' in message)) return;
       pendingRevealId.current = null;
       if (revealTimeout.current) clearTimeout(revealTimeout.current);
       revealTimeout.current = null;
-      if (message.status === 'applied') setNotice('Cell shown in the live canvas.');
-      else setError('The live canvas could not show that cell.');
+      if (message.status === 'applied') setNotice('Requested cells are shown.');
+      else setError('The workbook view could not show those cells.');
     };
     window.addEventListener('message', onMessage);
     return () => { window.removeEventListener('message', onMessage); if (revealTimeout.current) clearTimeout(revealTimeout.current); };
@@ -250,17 +258,16 @@ export function AnalystWorkspace({ initialFile = '', availableSlots = 4, onOpen,
     </dialog>
     <main className="workbench-body">
       <section className="sheet-stage" aria-label="Live spreadsheet">
-        <div className="stage-caption"><span>WORKING PAPER</span><span>{file ? 'Live Mog canvas · human edits' : 'Your model, with the evidence beside it'}</span></div>
+        <div className="stage-caption"><span>WORKING PAPER</span><span>{file ? 'Your workbook · select cells to discuss' : 'Your model, with the evidence beside it'}</span></div>
         {file ? <iframe inert={applying || undefined} ref={canvasFrame} title="Live workbook canvas" key={`${file}-${canvasVersion}`} src={`/index.html?wb=${encodeURIComponent(file)}&compact=1&embedded=1`} /> : <div className="empty-workbook"><span className="eyebrow">FROM MODEL TO ANSWER</span><h1>Understand the number.<br />Test the assumption.</h1><p>Start a workbook of your own, or explore a financial example with the evidence beside it.</p><div className="empty-workbook-actions"><button className="primary" onClick={openNewWorkbook} disabled={busy || importing || creating} data-testid="empty-new-workbook">New workbook</button><button onClick={loadExample} disabled={busy || importing || creating}>Try the financial example</button></div><p className="quiet">Built-in calculations stay on this computer. Agent tasks use your signed-in Claude account. The example uses generated data.</p></div>}
         <div className="stage-footer"><span>{applying && 'Applying reviewed changes… '}</span><span>{dirty ? 'Unsaved edits in canvas — save before analyzing' : 'Analysis reads the saved workbook'}</span><span>Scenarios never save</span></div>
       </section>
       <aside className="analysis-panel" aria-label="Analysis tools">
-        <div className="panel-intro"><span className="eyebrow">REVIEW DESK</span><h2>Follow the evidence</h2><p>Exact cells. Explicit assumptions. Reproducible results.</p></div>
-        <nav className="mode-tabs" aria-label="Analysis mode">{modes.map(item => <button key={item.id} aria-current={mode === item.id ? 'page' : undefined} onClick={() => { setMode(item.id); setResult(null); setError(''); requestId.current++; }} disabled={busy}>{item.label}</button>)}</nav><nav className="mode-tabs decision-tabs" aria-label="Decision tools">{decisionModes.map(item => <button key={item.id} data-testid={`mode-${item.id}`} aria-current={mode === item.id ? 'page' : undefined} onClick={() => { setMode(item.id); setResult(null); setError(''); requestId.current++; }} disabled={busy}>{item.label}</button>)}</nav>
-        <div className="analysis-content"><AgentDesk name={file} sheet={sheet} range={range} dirty={dirty} onWorking={reportAgentWorking} onApplying={setApplying} canApply={() => !canvasFrame.current?.contentDocument?.querySelector('.dot.dirty')} onApplied={() => {
+        <div className="panel-intro"><span className="eyebrow">REVIEW DESK</span><h2>Think it through, together</h2><p>Your questions. Supporting cells. Changes you can review.</p></div>
+        <div className="analysis-content"><AgentDesk savedSelection={savedSelection} key={file} onSetEvidence={setAttachedEvidence} onTool={tool => { setMode(tool); setToolsOpen(true); setResult(null); }} evidence={attachedEvidence} onClearEvidence={() => setAttachedEvidence(undefined)} name={file} sheet={sheet} range={range} dirty={dirty} onWorking={reportAgentWorking} onApplying={setApplying} canApply={() => !canvasFrame.current?.contentDocument?.querySelector('.dot.dirty')} onApplied={() => {
             if (canvasFrame.current?.contentDocument?.querySelector('.dot.dirty')) { setError('Agent changes were saved, but your canvas has newer unsaved edits. The canvas was kept open to preserve them.'); return; }
             setCanvasVersion(value => value + 1); setResult(null);
-          }} /><p className="mode-description">{current.description}</p>
+          }} /><details className="calculation-tools" open={toolsOpen} onToggle={event => setToolsOpen(event.currentTarget.open)}><summary>Exact calculations & evidence tools</summary><p className="field-help">Use these when you need an exact tie-out, a formula trail, or a repeatable calculation. Attach a result to discuss it.</p><nav className="mode-tabs" aria-label="Analysis mode">{modes.map(item => <button key={item.id} aria-current={mode === item.id ? 'page' : undefined} onClick={() => { setMode(item.id); setResult(null); setError(''); requestId.current++; }} disabled={busy}>{item.label}</button>)}</nav><nav className="mode-tabs decision-tabs" aria-label="Decision tools">{decisionModes.map(item => <button key={item.id} data-testid={`mode-${item.id}`} aria-current={mode === item.id ? 'page' : undefined} onClick={() => { setMode(item.id); setResult(null); setError(''); requestId.current++; }} disabled={busy}>{item.label}</button>)}</nav><p className="mode-description">{current.description}</p>
           {example && <div className="example-note"><strong>Example guide</strong><span>{mode === 'sensitivity' ? 'Growth × margin: the center case returns EBITDA 360,000.' : mode === 'drivers' ? 'Growth B3 and margin B4 are tested around saved EBITDA 360,000.' : mode === 'goalSeek' ? 'Target EBITDA 420,000 requires growth 0.2 (20%).' : mode === 'variance' ? 'Both lists total 1,000,000. Rows are positional amounts, not matched accounts or actual/budget.' : mode === 'checks' ? 'The example balances and exceeds the 300,000 EBITDA floor.' : mode === 'scenario' ? 'Growth of 0%, 10%, 20% → EBITDA 300,000 / 360,000 / 420,000.' : mode === 'reconcile' ? 'Assets and funding both total 1,000,000.' : mode === 'audit' ? 'D19 intentionally uses addition where its peers use multiplication. This is a review exercise.' : mode === 'explain' ? 'B8 = gross profit less operating costs. Expected EBITDA: 360,000.' : 'Inspect the saved model, then follow B8 through Explain.'}</span></div>}
           <form onSubmit={run}><fieldset disabled={busy || !file}><div className="form-row"><label>Sheet<select value={sheet} onChange={event => change(setSheet, event.target.value)}>{sheets.map(name => <option key={name}>{name}</option>)}</select></label><button className="selection-button" type="button" onClick={useSelection}>Use selection</button></div>
             {(mode === 'context' || mode === 'audit') && <label>Range<input value={range} onChange={event => change(setRange, event.target.value)} required placeholder="A1:D19" /></label>}
@@ -285,9 +292,9 @@ export function AnalystWorkspace({ initialFile = '', availableSlots = 4, onOpen,
             <div className="evidence-footer"><span title={result.revision}>Saved revision {result.revision?.slice(0, 12)}</span><button data-testid="pin-evidence" disabled={notebook.length >= 20 || !pinnableStatuses.has(result.status)} onClick={() => {
               if (notebook.length && (notebook[0].result.workbook !== result.workbook || notebook[0].result.revision !== result.revision)) { setError('This notebook belongs to another workbook or saved revision. Export it, then clear it before pinning this result.'); return; }
               setNotebook(previous => [...previous, { result: structuredClone(result), assumptions: structuredClone(assumptions) }]); setNotice('Result pinned in this session.');
-            }}>Pin to notebook</button><button onClick={downloadEvidence}>Export evidence ↓</button></div><details className="raw-evidence"><summary>Full result and provenance</summary><pre>{JSON.stringify(result, null, 2)}</pre></details>
+            }}>Pin to notebook</button><button disabled={!result.revision} onClick={() => { const full = JSON.stringify({ result, assumptions }); const summary = full.length <= 6000 ? full : 'Partial evidence excerpt (truncated; request the exact result for full coverage):\n' + full.slice(0, 5800); setAttachedEvidence({ revision: result.revision!, summary }); setToolsOpen(false); }}>Discuss this result</button><button onClick={downloadEvidence}>Export evidence ↓</button></div><details className="raw-evidence"><summary>Full result and provenance</summary><pre>{JSON.stringify(result, null, 2)}</pre></details>
           </section>}
-          <section className="evidence-notebook" data-testid="evidence-notebook"><span className="eyebrow">SESSION NOTEBOOK</span><h3>Evidence worth keeping <span>{notebook.length}/20</span></h3><p className="field-help">Pin results from one workbook revision. Kept in this tab only; download before closing. No automatic storage.</p>{notebook.length > 0 && <><p className="quiet">{String(notebook[0].result.workbook)} · revision {String(notebook[0].result.revision).slice(0, 12)}</p><ol>{notebook.map((entry, i) => <li key={i}>{String(entry.result.action)} <button aria-label={`Remove evidence ${i + 1}`} onClick={() => setNotebook(previous => previous.filter((_, index) => index !== i))}>Remove</button></li>)}</ol><div className="notebook-actions"><button data-testid="export-brief" onClick={() => downloadFile('mog-decision-brief.html', evidenceBrief(notebook), 'text/html')}>Printable brief</button><button data-testid="export-notebook" onClick={() => downloadFile('mog-decision-evidence.json', JSON.stringify({ version: 1, entries: notebook }, null, 2), 'application/json')}>Download JSON</button><button data-testid="clear-notebook" onClick={() => setNotebook([])}>Clear</button></div></>}</section>
+          </details><section className="evidence-notebook" data-testid="evidence-notebook"><span className="eyebrow">SESSION NOTEBOOK</span><h3>Evidence worth keeping <span>{notebook.length}/20</span></h3><p className="field-help">Pin results from one workbook revision. Kept in this tab only; download before closing. No automatic storage.</p>{notebook.length > 0 && <><p className="quiet">{String(notebook[0].result.workbook)} · revision {String(notebook[0].result.revision).slice(0, 12)}</p><ol>{notebook.map((entry, i) => <li key={i}>{String(entry.result.action)} <button aria-label={`Remove evidence ${i + 1}`} onClick={() => setNotebook(previous => previous.filter((_, index) => index !== i))}>Remove</button></li>)}</ol><div className="notebook-actions"><button data-testid="export-brief" onClick={() => downloadFile('mog-decision-brief.html', evidenceBrief(notebook), 'text/html')}>Printable brief</button><button data-testid="export-notebook" onClick={() => downloadFile('mog-decision-evidence.json', JSON.stringify({ version: 1, entries: notebook }, null, 2), 'application/json')}>Download JSON</button><button data-testid="clear-notebook" onClick={() => setNotebook([])}>Clear</button></div></>}</section>
         </div>
       </aside>
     </main>

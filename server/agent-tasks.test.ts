@@ -187,3 +187,49 @@ test('explicit durable archive frees full history, preserves notes and active jo
   const after = await engine.list(); assert.equal(after.notes.length, 2); assert.equal(after.jobs[0].id, active.id); assert.equal(after.jobs[0].status, 'running');
   capped = false; await engine.cancel(active.id); pending.resolve(answer); await engine.close();
 });
+
+test('follow-ups carry bounded actual answers, fresh revisions and stale attached evidence', async () => {
+  let revision = 'v1';
+  const contexts: import('./agent-tasks.ts').AgentContext[] = [];
+  const store = memory();
+  const engine = createAgentTasks({ store, context: async () => ({ revision, content: { coverage: 'A1:B8 only' } }), planner: async (_, context) => { contexts.push(context); return { answer: 'actual answer '.repeat(400), changes: [] }; } });
+  let parentId: string | undefined;
+  for (let i = 0; i < 6; i++) {
+    const saved = await engine.saveNote({ ...note('A.xlsx'), text: `Turn ${i}`, ...(parentId ? { parentJobId: parentId } : {}), attachedEvidence: { revision: 'v1', summary: 'Exact prior calculation: 42; omitted chart.' } });
+    revision = `v${i + 1}`;
+    const job = await engine.run(saved.id);
+    await until(async () => (await engine.list()).jobs.find(item => item.id === job.id)?.status === 'completed');
+    parentId = job.id;
+  }
+  const latest = contexts.at(-1)!;
+  assert.equal(latest.revision, 'v6'); assert.equal(latest.conversation!.turns.length, 4); assert.equal(latest.conversation!.truncated, true);
+  assert.deepEqual(latest.conversation!.turns.map(turn => turn.note), ['Turn 1', 'Turn 2', 'Turn 3', 'Turn 4']);
+  assert.ok(latest.conversation!.turns.every(turn => turn.stale && turn.answer.length === 3000 && turn.answer.startsWith('actual answer')));
+  assert.equal(latest.priorToolEvidence!.stale, true); assert.equal(contexts[0].priorToolEvidence!.stale, false);
+  assert.equal(latest.priorToolEvidence!.source, 'prior-tool-evidence');
+  await assert.rejects(engine.saveNote({ ...note('Other.xlsx'), parentJobId: parentId }), /same workbook/);
+  await assert.rejects(engine.saveNote({ ...note('A.xlsx'), attachedEvidence: { revision: 'v1', summary: 'x'.repeat(6001) } }));
+  await engine.close();
+  const restored = createAgentTasks({ store, context: async () => ({ revision, content: {} }), planner: async () => answer });
+  await restored.ready(); assert.equal((await restored.list()).notes.at(-1)!.parentJobId !== undefined, true); await restored.close();
+});
+
+test('follow-up rejects unfinished and archived parents; specialist results are typed judgments', async () => {
+  const pending = deferred<typeof answer>();
+  const engine = createAgentTasks({ store: memory(), context: async () => ({ revision: 'v1', content: {} }), planner: async () => pending.promise, archive: async () => ({ saved: true }) });
+  const saved = await engine.saveNote(note('A.xlsx')); const parent = await engine.run(saved.id);
+  await assert.rejects(engine.saveNote({ ...note('A.xlsx'), parentJobId: parent.id }), /completed or applied/);
+  pending.resolve(answer); await until(async () => (await engine.list()).jobs[0].status === 'completed');
+  const child = await engine.saveNote({ ...note('A.xlsx'), parentJobId: parent.id });
+  await engine.archiveCompleted('A.xlsx'); await assert.rejects(engine.run(child.id), /workspace history/); await engine.close();
+  const assessment = { category: 'Stable', score: 4, evidence: ['Saved B8'], uncertainty: 'Only the selected range was reviewed.' };
+  assert.deepEqual(validateAgentAnswer({ ...answer, assessment }, note('A.xlsx')).assessment, assessment);
+  for (const score of [0, 6, 0.9]) assert.throws(() => validateAgentAnswer({ ...answer, assessment: { ...assessment, score } }, note('A.xlsx')));
+  const specialist = createAgentTasks({ store: memory(), context: async () => ({ revision: 'v1', content: {} }), planner: async item => item.text === 'valid' ? { ...answer, assessment } : answer });
+  const valid = await specialist.saveNote({ ...note('A.xlsx'), text: 'valid', analysisKind: 'score' }); await specialist.run(valid.id);
+  await until(async () => (await specialist.list()).jobs[0].status === 'completed');
+  assert.equal((await specialist.list()).jobs[0].result!.assessment!.score, 4);
+  const invalid = await specialist.saveNote({ ...note('A.xlsx'), analysisKind: 'classify' }); await specialist.run(invalid.id);
+  await until(async () => (await specialist.list()).jobs[1].status === 'failed');
+  assert.match((await specialist.list()).jobs[1].error!, /category/); await specialist.close();
+});
