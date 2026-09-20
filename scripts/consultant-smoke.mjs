@@ -87,71 +87,74 @@ try {
   const evaluate = async expression => { const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }); if (result.exceptionDetails) throw new Error(result.exceptionDetails.text); return result.result.value; };
   await send('Runtime.enable');
   await send('Page.reload', { ignoreCache: true });
-  await until(() => evaluate(`!!document.querySelector('[data-testid="load-example"]')`));
-  check('new workbook is available in the toolbar and empty state', await evaluate(`!!document.querySelector('[data-testid="new-workbook"]') && !!document.querySelector('[data-testid="empty-new-workbook"]')`));
+  await until(() => evaluate(`!!document.querySelector('[role="tabpanel"]:not([hidden])')`));
+  await evaluate(`window.activeDesk = () => document.querySelector('[role="tabpanel"]:not([hidden])')`);
+  await until(() => evaluate(`!!window.activeDesk().querySelector('[data-testid="load-example"]')`));
+  check('new workbook is available in the toolbar and empty state', await evaluate(`!!window.activeDesk().querySelector('[data-testid="new-workbook"]') && !!window.activeDesk().querySelector('[data-testid="empty-new-workbook"]')`));
   const blankName = `Release blank ${Date.now()}.xlsx`;
-  const fillWorkbookName = value => evaluate(`(() => { const field = document.querySelector('[data-testid="new-workbook-name"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(field, ${JSON.stringify(value)}); field.dispatchEvent(new Event('input', { bubbles: true })); })()`);
-  await evaluate(`document.querySelector('[data-testid="empty-new-workbook"]').click()`);
-  await until(() => evaluate(`document.querySelector('.new-workbook-dialog').open`));
+  const fillWorkbookName = value => evaluate(`(() => { const field = window.activeDesk().querySelector('[data-testid$="-new-workbook-name"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(field, ${JSON.stringify(value)}); field.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await evaluate(`window.activeDesk().querySelector('[data-testid="empty-new-workbook"]').click()`);
+  await until(() => evaluate(`window.activeDesk().querySelector('.new-workbook-dialog').open`));
   await fillWorkbookName(blankName);
   const newDialogShot = await send('Page.captureScreenshot', { format: 'png' });
   await writeFile(join(output, 'new-workbook-dialog.png'), Buffer.from(newDialogShot.data, 'base64'));
-  await evaluate(`document.querySelector('[data-testid="create-workbook"]').click()`);
-  await until(() => evaluate(`!document.querySelector('.new-workbook-dialog').open && document.querySelector('#workbook').value === ${JSON.stringify(blankName)} && document.querySelector('iframe')?.contentDocument?.querySelector('.status')?.textContent === 'renderer ready'`), 180000);
+  await evaluate(`window.activeDesk().querySelector('[data-testid="create-workbook"]').click()`);
+  await until(() => evaluate(`!window.activeDesk().querySelector('.new-workbook-dialog').open && window.activeDesk().querySelector('select[id$="-workbook"]').value === ${JSON.stringify(blankName)} && window.activeDesk().querySelector('iframe')?.contentDocument?.querySelector('.status')?.textContent === 'renderer ready'`), 180000);
   const blankContext = await json('/api/analyst', { action: 'context', name: blankName, sheet: 'Sheet1', range: 'A1:D20' });
-  check('named blank workbook opens a real empty Sheet1 canvas', blankContext.cells.length === 0 && await evaluate(`document.querySelector('iframe').contentDocument.querySelector('.canvas canvas') !== null`));
+  check('named blank workbook opens a real empty Sheet1 canvas', blankContext.cells.length === 0 && await evaluate(`window.activeDesk().querySelector('iframe').contentDocument.querySelector('.canvas canvas') !== null`));
   const blankBefore = Buffer.from(await (await fetch(`${origin}/api/workbook?path=${encodeURIComponent(blankName)}`)).arrayBuffer());
-  await evaluate(`document.querySelector('[data-testid="new-workbook"]').click()`);
+  await evaluate(`window.activeDesk().querySelector('[data-testid="new-workbook"]').click()`);
   await fillWorkbookName(blankName);
-  await evaluate(`document.querySelector('[data-testid="create-workbook"]').click()`);
-  await until(() => evaluate(`document.querySelector('[data-testid="create-workbook-error"]')?.textContent.includes('already exists')`));
+  await evaluate(`window.activeDesk().querySelector('[data-testid="create-workbook"]').click()`);
+  await until(() => evaluate(`window.activeDesk().querySelector('[data-testid="create-workbook-error"]')?.textContent.includes('already exists')`));
   check('duplicate creation shows a useful error and preserves the existing workbook', blankBefore.equals(Buffer.from(await (await fetch(`${origin}/api/workbook?path=${encodeURIComponent(blankName)}`)).arrayBuffer())));
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-  check('new workbook dialog fits a mobile viewport', await evaluate(`document.querySelector('.new-workbook-dialog').getBoundingClientRect().width <= window.innerWidth && document.querySelector('.new-workbook-dialog').scrollWidth <= document.querySelector('.new-workbook-dialog').clientWidth`));
-  await evaluate(`Array.from(document.querySelectorAll('.new-workbook-dialog button')).find(button => button.textContent === 'Cancel').click()`);
-  check('cancel preserves the selected workbook', await evaluate(`!document.querySelector('.new-workbook-dialog').open && document.querySelector('#workbook').value === ${JSON.stringify(blankName)}`));
+  check('new workbook dialog fits a mobile viewport', await evaluate(`window.activeDesk().querySelector('.new-workbook-dialog').getBoundingClientRect().width <= window.innerWidth && window.activeDesk().querySelector('.new-workbook-dialog').scrollWidth <= window.activeDesk().querySelector('.new-workbook-dialog').clientWidth`));
+  await evaluate(`Array.from(window.activeDesk().querySelectorAll('.new-workbook-dialog button')).find(button => button.textContent === 'Cancel').click()`);
+  check('cancel preserves the selected workbook', await evaluate(`!window.activeDesk().querySelector('.new-workbook-dialog').open && window.activeDesk().querySelector('select[id$="-workbook"]').value === ${JSON.stringify(blankName)}`));
   await send('Emulation.clearDeviceMetricsOverride');
-  await evaluate(`document.querySelector('[data-testid="load-example"]').click()`);
-  await until(() => evaluate(`document.querySelector('#workbook').value === ${JSON.stringify(name)} && document.querySelector('iframe')?.contentDocument?.querySelector('.picker')?.value === ${JSON.stringify(name)} && document.querySelector('iframe')?.contentDocument?.querySelector('.status')?.textContent === 'renderer ready' && !document.querySelector('[data-testid="run-analysis"]').disabled`), 180000);
+  await evaluate(`window.activeDesk().querySelector('[data-testid="load-example"]').click()`);
+  await until(() => evaluate(`window.activeDesk().querySelector('select[id$="-workbook"]').value === ${JSON.stringify(name)} && window.activeDesk().querySelector('iframe')?.contentDocument?.querySelector('.picker')?.value === ${JSON.stringify(name)} && window.activeDesk().querySelector('iframe')?.contentDocument?.querySelector('.status')?.textContent === 'renderer ready' && !window.activeDesk().querySelector('[data-testid="run-analysis"]').disabled`), 180000);
   check('production real Mog canvas reaches renderer ready', true);
-  check('canvas renders actual spreadsheet elements', await evaluate(`document.querySelector('iframe').contentDocument.querySelector('.canvas').querySelectorAll('*').length > 50`));
-  check('embedded canvas cannot diverge from selected workbook', await evaluate(`document.querySelector('iframe').contentDocument.querySelector('.picker').disabled && document.querySelector('iframe').contentDocument.querySelector('.picker').value === document.querySelector('#workbook').value`));
+  check('canvas renders actual spreadsheet elements', await evaluate(`window.activeDesk().querySelector('iframe').contentDocument.querySelector('.canvas').querySelectorAll('*').length > 50`));
+  check('canvas remains mounted after renderer readiness without a React DOM removal error', await evaluate(`window.activeDesk().querySelector('iframe').contentDocument.querySelector('.canvas').querySelectorAll('*').length > 50`) && !errors.some(error => /NotFoundError|removeChild/i.test(error)));
+  check('embedded canvas cannot diverge from selected workbook', await evaluate(`window.activeDesk().querySelector('iframe').contentDocument.querySelector('.picker').disabled && window.activeDesk().querySelector('iframe').contentDocument.querySelector('.picker').value === window.activeDesk().querySelector('select[id$="-workbook"]').value`));
   async function exerciseControls(viewport) {
    for (const [label, expected] of [['Inspect', '360000'], ['Explain', 'B7'], ['Review', 'D19'], ['Tie out', '1,000,000'], ['Scenarios', '420,000'], ['Sensitivity', '360,000'], ['Drivers', '360,000'], ['Goal seek', 'Target reached within tolerance'], ['Variance', '33.3333%'], ['Check packs', '2 passed']]) {
-    await evaluate(`Array.from(document.querySelectorAll('.mode-tabs button')).find(button => button.textContent === ${JSON.stringify(label)}).click()`);
-    await evaluate(`document.querySelector('[data-testid="run-analysis"]').click()`);
-    await until(() => evaluate(`!!document.querySelector('[data-testid="analysis-result"]') || !!document.querySelector('.analysis-content [role="alert"]')`));
-    const error = await evaluate(`document.querySelector('.analysis-content [role="alert"]')?.textContent ?? ''`);
-    check(`${viewport} ${label} runs through the browser controls`, !error && await evaluate(`document.querySelector('[data-testid="analysis-result"]').textContent.includes(${JSON.stringify(expected)})`));
-    if (label === 'Goal seek') check(`${viewport} goal-seek input preserves reproducible precision`, await evaluate(`document.querySelector('.solution-value').textContent === ${JSON.stringify(`Input ${goal.solution}`)}`));
-    if (label === 'Check packs') check(`${viewport} check outcomes show comparison and effective tolerance`, await evaluate(`['Equals', 'At least', '0.01', 'tolerance'].every(value => document.querySelector('[data-testid="checks-result"]').textContent.includes(value))`));
-    if (viewport === 'desktop' && ['Sensitivity', 'Drivers', 'Goal seek', 'Variance', 'Check packs'].includes(label)) await evaluate(`document.querySelector('[data-testid="pin-evidence"]').click()`);
+    await evaluate(`Array.from(window.activeDesk().querySelectorAll('.mode-tabs button')).find(button => button.textContent === ${JSON.stringify(label)}).click()`);
+    await evaluate(`window.activeDesk().querySelector('[data-testid="run-analysis"]').click()`);
+    await until(() => evaluate(`!!window.activeDesk().querySelector('[data-testid="analysis-result"]') || !!window.activeDesk().querySelector('.analysis-content > .failure[role="alert"]')`));
+    const error = await evaluate(`window.activeDesk().querySelector('.analysis-content > .failure[role="alert"]')?.textContent ?? ''`);
+    check(`${viewport} ${label} runs through the browser controls`, !error && await evaluate(`window.activeDesk().querySelector('[data-testid="analysis-result"]').textContent.includes(${JSON.stringify(expected)})`));
+    if (label === 'Goal seek') check(`${viewport} goal-seek input preserves reproducible precision`, await evaluate(`window.activeDesk().querySelector('.solution-value').textContent === ${JSON.stringify(`Input ${goal.solution}`)}`));
+    if (label === 'Check packs') check(`${viewport} check outcomes show comparison and effective tolerance`, await evaluate(`['Equals', 'At least', '0.01', 'tolerance'].every(value => window.activeDesk().querySelector('[data-testid="checks-result"]').textContent.includes(value))`));
+    if (viewport === 'desktop' && ['Sensitivity', 'Drivers', 'Goal seek', 'Variance', 'Check packs'].includes(label)) await evaluate(`window.activeDesk().querySelector('[data-testid="pin-evidence"]').click()`);
     if (viewport === 'desktop' && ['Sensitivity', 'Drivers', 'Goal seek', 'Variance'].includes(label)) {
-      await evaluate(`document.querySelector('[data-testid="analysis-result"]').scrollIntoView({block:'center'})`);
+      await evaluate(`window.activeDesk().querySelector('[data-testid="analysis-result"]').scrollIntoView({block:'center'})`);
       const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
       await writeFile(join(output, `${label.toLowerCase().replaceAll(' ', '-')}.png`), Buffer.from(shot.data, 'base64'));
     }
    }
   }
   await exerciseControls('desktop');
-  await evaluate(`document.querySelector('[data-testid="analysis-result"]').scrollIntoView({block:'end'})`);
+  await evaluate(`window.activeDesk().querySelector('[data-testid="analysis-result"]').scrollIntoView({block:'end'})`);
   const desktop = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
   await writeFile(join(output, 'desktop.png'), Buffer.from(desktop.data, 'base64'));
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await pause(300);
   check('mobile layout has no horizontal overflow', await evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1'));
-  check('mobile analysis controls remain visible', await evaluate(`document.querySelector('[data-testid="run-analysis"]').getBoundingClientRect().width > 200`));
+  check('mobile analysis controls remain visible', await evaluate(`window.activeDesk().querySelector('[data-testid="run-analysis"]').getBoundingClientRect().width > 200`));
   await exerciseControls('mobile');
-  await evaluate(`document.querySelector('[data-testid="analysis-result"]').scrollIntoView({block:'end'})`);
+  await evaluate(`window.activeDesk().querySelector('[data-testid="analysis-result"]').scrollIntoView({block:'end'})`);
   const mobile = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
   await writeFile(join(output, 'mobile.png'), Buffer.from(mobile.data, 'base64'));
   const downloads = join(profile, 'downloads');
   await mkdir(downloads);
   await send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloads });
-  await evaluate(`Array.from(document.querySelectorAll('.evidence-footer button')).find(button => button.textContent.includes('Export evidence')).click()`);
+  await evaluate(`Array.from(window.activeDesk().querySelectorAll('.evidence-footer button')).find(button => button.textContent.includes('Export evidence')).click()`);
   const exported = await until(async () => JSON.parse(await readFile(join(downloads, 'mog-checks-evidence.json'), 'utf8')));
   check('downloaded evidence retains checks and saved revision', exported.action === 'checks' && exported.revision === context.revision && exported.checks.length === 2);
-  await evaluate(`document.querySelector('[data-testid="export-notebook"]').click(); document.querySelector('[data-testid="export-brief"]').click(); Array.from(document.querySelectorAll('.pack-toolbar button')).find(button => button.textContent.includes('Download')).click()`);
+  await evaluate(`window.activeDesk().querySelector('[data-testid="export-notebook"]').click(); window.activeDesk().querySelector('[data-testid="export-brief"]').click(); Array.from(window.activeDesk().querySelectorAll('.pack-toolbar button')).find(button => button.textContent.includes('Download')).click()`);
   const notebook = await until(async () => JSON.parse(await readFile(join(downloads, 'mog-decision-evidence.json'), 'utf8')));
   check('notebook exports all five pinned decision results from one revision', notebook.entries.length === 5 && notebook.entries.every(entry => entry.result.revision === context.revision && entry.assumptions.action === entry.result.action));
   const brief = await until(async () => readFile(join(downloads, 'mog-decision-brief.html'), 'utf8'));
@@ -161,12 +164,12 @@ try {
   const packPath = join(downloads, 'mog-check-pack.json');
   const pack = await until(async () => JSON.parse(await readFile(packPath, 'utf8')));
   check('check pack exports reusable rules', pack.version === 1 && pack.checks.length === 2);
-  await evaluate(`document.querySelector('[data-testid="add-check"]').click()`);
+  await evaluate(`window.activeDesk().querySelector('[data-testid="add-check"]').click()`);
   const documentNode = await send('DOM.getDocument');
-  const fileNode = await send('DOM.querySelector', { nodeId: documentNode.root.nodeId, selector: '[data-testid="import-check-pack"]' });
+  const fileNode = await send('DOM.querySelector', { nodeId: documentNode.root.nodeId, selector: '[role="tabpanel"]:not([hidden]) [data-testid="import-check-pack"]' });
   await send('DOM.setFileInputFiles', { nodeId: fileNode.nodeId, files: [packPath] });
-  await until(() => evaluate(`document.querySelector('[data-testid="add-check"]').textContent.includes('2/8')`));
-  check('imported check pack restores the draft without running it', await evaluate(`!document.querySelector('[data-testid="analysis-result"]')`));
+  await until(() => evaluate(`window.activeDesk().querySelector('[data-testid="add-check"]').textContent.includes('2/8')`));
+  check('imported check pack restores the draft without running it', await evaluate(`!window.activeDesk().querySelector('[data-testid="analysis-result"]')`));
   for (const [label, content] of [
     ['malformed JSON', '{'],
     ['unsupported version', JSON.stringify({ version: 2, checks: pack.checks })],
@@ -176,11 +179,11 @@ try {
     const invalidPath = join(downloads, 'invalid-pack.json');
     await writeFile(invalidPath, content);
     await send('DOM.setFileInputFiles', { nodeId: fileNode.nodeId, files: [invalidPath] });
-    await until(() => evaluate(`!!document.querySelector('.analysis-content [role="alert"]')`));
-    check(`check-pack import rejects ${label} and preserves the draft`, await evaluate(`document.querySelector('[data-testid="add-check"]').textContent.includes('2/8') && Array.from(document.querySelectorAll('.rule-card input')).some(input => input.value === 'Amounts agree')`));
+    await until(() => evaluate(`!!window.activeDesk().querySelector('.analysis-content > .failure[role="alert"]')`));
+    check(`check-pack import rejects ${label} and preserves the draft`, await evaluate(`window.activeDesk().querySelector('[data-testid="add-check"]').textContent.includes('2/8') && Array.from(window.activeDesk().querySelectorAll('.rule-card input')).some(input => input.value === 'Amounts agree')`));
     // A valid import clears the prior error before probing the next failure.
     await send('DOM.setFileInputFiles', { nodeId: fileNode.nodeId, files: [packPath] });
-    await until(() => evaluate(`!document.querySelector('.analysis-content [role="alert"]')`));
+    await until(() => evaluate(`!window.activeDesk().querySelector('.analysis-content > .failure[role="alert"]')`));
   }
   const firstPack = join(downloads, 'slow-first.json'), secondPack = join(downloads, 'slow-second.json');
   await writeFile(firstPack, JSON.stringify({ version: 1, checks: [{ ...pack.checks[0], label: 'Earlier import' }] }));
@@ -198,21 +201,21 @@ try {
   await send('DOM.setFileInputFiles', { nodeId: fileNode.nodeId, files: [secondPack] });
   await until(() => evaluate(`!!window.pendingPackReads['slow-second.json']`));
   await evaluate(`window.pendingPackReads['slow-second.json']()`);
-  await until(() => evaluate(`document.querySelector('.rule-card input')?.value === 'Later import'`));
+  await until(() => evaluate(`window.activeDesk().querySelector('.rule-card input')?.value === 'Later import'`));
   await evaluate(`window.pendingPackReads['slow-first.json']()`);
   await pause(100);
-  check('a slower earlier check-pack import cannot overwrite a later import', await evaluate(`document.querySelector('.rule-card input').value === 'Later import'`));
+  check('a slower earlier check-pack import cannot overwrite a later import', await evaluate(`window.activeDesk().querySelector('.rule-card input').value === 'Later import'`));
   await evaluate(`delete window.pendingPackReads['slow-first.json']`);
   await send('DOM.setFileInputFiles', { nodeId: fileNode.nodeId, files: [firstPack] });
   await until(() => evaluate(`!!window.pendingPackReads['slow-first.json']`));
-  await evaluate(`document.querySelector('[data-testid="add-check"]').click(); window.pendingPackReads['slow-first.json']()`);
+  await evaluate(`window.activeDesk().querySelector('[data-testid="add-check"]').click(); window.pendingPackReads['slow-first.json']()`);
   await pause(100);
-  check('a pending check-pack import cannot overwrite manual draft edits', await evaluate(`document.querySelector('[data-testid="add-check"]').textContent.includes('2/8') && document.querySelector('.rule-card input').value === 'Later import'`));
+  check('a pending check-pack import cannot overwrite manual draft edits', await evaluate(`window.activeDesk().querySelector('[data-testid="add-check"]').textContent.includes('2/8') && window.activeDesk().querySelector('.rule-card input').value === 'Later import'`));
   await evaluate(`window.restorePackReads()`);
   await send('DOM.setFileInputFiles', { nodeId: fileNode.nodeId, files: [packPath] });
-  await until(() => evaluate(`document.querySelector('.rule-card input')?.value === 'Amounts agree'`));
-  await evaluate(`document.querySelector('[data-testid="run-analysis"]').click()`);
-  await until(() => evaluate(`document.querySelector('[data-testid="checks-result"]')?.textContent.includes('2 passed')`));
+  await until(() => evaluate(`window.activeDesk().querySelector('.rule-card input')?.value === 'Amounts agree'`));
+  await evaluate(`window.activeDesk().querySelector('[data-testid="run-analysis"]').click()`);
+  await until(() => evaluate(`window.activeDesk().querySelector('[data-testid="checks-result"]')?.textContent.includes('2 passed')`));
   check('imported example check pack executes successfully', true);
   await evaluate(`(() => {
     const original = window.fetch;
@@ -225,36 +228,36 @@ try {
       }
       return original(url, options);
     };
-    document.querySelector('[data-testid="run-analysis"]').click();
+    window.activeDesk().querySelector('[data-testid="run-analysis"]').click();
   })()`);
-  await until(() => evaluate(`document.querySelector('.evidence-footer span')?.title === 'synthetic-different-revision'`));
-  await evaluate(`document.querySelector('[data-testid="pin-evidence"]').click()`);
-  check('notebook refuses evidence from a different revision', await evaluate(`document.querySelector('.analysis-content [role="alert"]')?.textContent.includes('another workbook or saved revision') && document.querySelectorAll('[data-testid="evidence-notebook"] li').length === 5`));
-  await evaluate(`Array.from(document.querySelectorAll('.mode-tabs button')).find(button => button.textContent === 'Inspect').click()`);
-  await evaluate(`document.querySelector('[data-testid="run-analysis"]').click()`);
-  await until(() => evaluate(`!!document.querySelector('[data-testid="analysis-result"] .cell-link')`));
+  await until(() => evaluate(`window.activeDesk().querySelector('.evidence-footer span')?.title === 'synthetic-different-revision'`));
+  await evaluate(`window.activeDesk().querySelector('[data-testid="pin-evidence"]').click()`);
+  check('notebook refuses evidence from a different revision', await evaluate(`window.activeDesk().querySelector('.analysis-content > .failure[role="alert"]')?.textContent.includes('another workbook or saved revision') && window.activeDesk().querySelectorAll('[data-testid="evidence-notebook"] li').length === 5`));
+  await evaluate(`Array.from(window.activeDesk().querySelectorAll('.mode-tabs button')).find(button => button.textContent === 'Inspect').click()`);
+  await evaluate(`window.activeDesk().querySelector('[data-testid="run-analysis"]').click()`);
+  await until(() => evaluate(`!!window.activeDesk().querySelector('[data-testid="analysis-result"] .cell-link')`));
   await evaluate(`(() => { const sibling = document.createElement('iframe'); sibling.id = 'competing-canvas'; sibling.style.cssText = 'position:fixed;left:-2000px;width:900px;height:600px'; sibling.src = '/index.html?wb=' + encodeURIComponent(${JSON.stringify(name)}) + '&compact=1&embedded=1'; document.body.append(sibling); })()`);
   await until(() => evaluate(`document.querySelector('#competing-canvas').contentDocument?.querySelector('.status')?.textContent === 'renderer ready'`));
   const siblingInputs = await evaluate(`Array.from(document.querySelector('#competing-canvas').contentDocument.querySelectorAll('.canvas input')).map(input => input.value)`);
-  await evaluate(`Array.from(document.querySelectorAll('.cell-link')).find(button => button.textContent === 'B8').click()`);
+  await evaluate(`Array.from(window.activeDesk().querySelectorAll('.cell-link')).find(button => button.textContent === 'B8').click()`);
   // Navigation deliberately preserves the human context bus; verify the real
   // formula bar instead of mistaking the last human selection for view state.
   try {
-    await until(() => evaluate(`Array.from(document.querySelector('iframe').contentDocument.querySelectorAll('.canvas input')).some(input => input.value.replace(/^=/, '') === 'B7-B5')`));
+    await until(() => evaluate(`Array.from(window.activeDesk().querySelector('iframe').contentDocument.querySelectorAll('.canvas input')).some(input => input.value.replace(/^=/, '') === 'B7-B5')`));
   } catch (error) {
-    const navigation = await evaluate(`(() => { const frame = document.querySelector('iframe').contentDocument; return { parentError: document.querySelector('.analysis-content [role="alert"]')?.textContent, frameError: frame.querySelector('.error')?.textContent, status: frame.querySelector('.status')?.textContent, inputs: Array.from(frame.querySelectorAll('input')).map(input => ({ value: input.value, placeholder: input.placeholder })), text: frame.body.textContent.slice(-2500) }; })()`);
+    const navigation = await evaluate(`(() => { const frame = window.activeDesk().querySelector('iframe').contentDocument; return { parentError: window.activeDesk().querySelector('.analysis-content > .failure[role="alert"]')?.textContent, frameError: frame.querySelector('.error')?.textContent, status: frame.querySelector('.status')?.textContent, inputs: Array.from(frame.querySelectorAll('input')).map(input => ({ value: input.value, placeholder: input.placeholder })), text: frame.body.textContent.slice(-2500) }; })()`);
     await writeFile(join(output, 'navigation-failure.json'), JSON.stringify(navigation, null, 2));
     throw new Error(`Cell navigation failed: ${JSON.stringify(navigation)}`, { cause: error });
   }
   check('cell evidence navigates the live canvas to B8', true);
-  check('evidence navigation targets its own canvas with a competing workbook view open', await evaluate(`document.querySelector('iframe').contentDocument.querySelector('[data-testid="reveal-status"]')?.dataset.revealStatus === 'applied' && JSON.stringify(Array.from(document.querySelector('#competing-canvas').contentDocument.querySelectorAll('.canvas input')).map(input => input.value)) === ${JSON.stringify(JSON.stringify(siblingInputs))}`));
+  check('evidence navigation targets its own canvas with a competing workbook view open', await evaluate(`window.activeDesk().querySelector('iframe').contentDocument.querySelector('[data-testid="reveal-status"]')?.dataset.revealStatus === 'applied' && JSON.stringify(Array.from(document.querySelector('#competing-canvas').contentDocument.querySelectorAll('.canvas input')).map(input => input.value)) === ${JSON.stringify(JSON.stringify(siblingInputs))}`));
   await evaluate(`document.querySelector('#competing-canvas').remove()`);
   const selection = await json(`/api/context?path=${name}`);
   for (const label of ['Scenarios', 'Tie out']) {
-    await evaluate(`Array.from(document.querySelectorAll('.mode-tabs button')).find(button => button.textContent === ${JSON.stringify(label)}).click()`);
-    await evaluate(`document.querySelector('.selection-button').click()`);
+    await evaluate(`Array.from(window.activeDesk().querySelectorAll('.mode-tabs button')).find(button => button.textContent === ${JSON.stringify(label)}).click()`);
+    await evaluate(`window.activeDesk().querySelector('.selection-button').click()`);
     const expected = label === 'Scenarios' ? selection.context.selection.split(':')[0] : selection.context.selection;
-    await until(() => evaluate(`document.querySelector('fieldset input').value === ${JSON.stringify(expected)}`));
+    await until(() => evaluate(`window.activeDesk().querySelector('fieldset input').value === ${JSON.stringify(expected)}`));
     check(`${label} uses the live canvas selection in its active input`, true);
   }
   await evaluate(`(() => {
@@ -266,13 +269,13 @@ try {
       }
       return original(url, options);
     };
-    document.querySelector('.selection-button').click();
-    Array.from(document.querySelectorAll('.mode-tabs button')).find(button => button.textContent === 'Explain').click();
+    window.activeDesk().querySelector('.selection-button').click();
+    Array.from(window.activeDesk().querySelectorAll('.mode-tabs button')).find(button => button.textContent === 'Explain').click();
   })()`);
   await pause(100);
   await evaluate(`window.releaseSelectionProbe()`);
   await pause(100);
-  check('late selection response cannot overwrite a different analysis mode', await evaluate(`document.querySelector('fieldset select').value === 'Model' && document.querySelector('fieldset input').value === 'B8'`));
+  check('late selection response cannot overwrite a different analysis mode', await evaluate(`window.activeDesk().querySelector('fieldset select').value === 'Model' && window.activeDesk().querySelector('fieldset input').value === 'B8'`));
   check('no browser runtime exceptions', errors.length === 0);
   check('browser workflows did not change saved source', before.equals(await getBytes()));
   await send('Page.navigate', { url: `${origin}/index.html?wb=missing-release-probe.xlsx&embedded=1` });

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useId, useCallback } from 'react';
 
+import { AgentDesk } from './AgentDesk';
 import { DecisionFields, DecisionResults, decisionModes, decisionPayload, initialRules, type CheckRule, type DecisionAction } from './DecisionDesk';
 import { downloadFile, evidenceBrief, type EvidenceEntry } from './evidence-brief';
 type Action = DecisionAction | 'context' | 'explain' | 'audit' | 'reconcile' | 'scenario';
@@ -45,9 +46,19 @@ function resultTitle(result: Result, decisionLabel?: string) {
   return 'Saved range context';
 }
 
-export function AnalystWorkspace() {
+export function AnalystWorkspace({ initialFile = '', availableSlots = 4, onOpen, onStatus }: { initialFile?: string; availableSlots?: number; onOpen?: (name: string) => void; onStatus?: (name: string, dirty: boolean, busy: boolean) => void }) {
+  const uniqueId = useId();
+  const [applying, setApplying] = useState(false);
+  const [agentWorking, setAgentWorking] = useState(false);
+  const [canvasVersion, setCanvasVersion] = useState(0);
+  const reportAgentWorking = useCallback((working: boolean) => setAgentWorking(working), []);
+  const [expanded, setExpanded] = useState(false);
+  const localPicker = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
   const [files, setFiles] = useState<string[]>([]);
-  const [file, setFile] = useState(new URLSearchParams(location.search).get('wb') ?? '');
+  const [file, setFile] = useState(initialFile);
+  const fileRef = useRef(file);
+  fileRef.current = file;
   const [sheets, setSheets] = useState<string[]>([]);
   const [sheet, setSheet] = useState('Model');
   const [mode, setMode] = useState<Action>('context');
@@ -81,6 +92,27 @@ export function AnalystWorkspace() {
   const current = [...modes, ...decisionModes].find(item => item.id === mode)!;
   const resultDecisionMode = result ? decisionModes.find(item => item.id === result.action) : undefined;
 
+  useEffect(() => { onStatus?.(file, dirty, busy || agentWorking); }, [file, dirty, busy, agentWorking, onStatus]);
+  function openFile(name: string) {
+    if (fileRef.current && name !== fileRef.current && onOpen) onOpen(name);
+    else { fileRef.current = name; setFile(name); }
+  }
+  async function importFiles(selected: FileList | null) {
+    if (!selected?.length) return;
+    if (selected.length > availableSlots + (file ? 0 : 1)) { setError('Close a workbook tab before importing more files. Up to four workbooks can stay open.'); return; }
+    setImporting(true); setError('');
+    try {
+      for (const [index, source] of Array.from(selected).entries()) {
+        if (source.size > 50 * 1024 * 1024) throw new Error(`${source.name} exceeds the 50 MB limit.`);
+        const response = await fetch(`/api/workbooks/import?name=${encodeURIComponent(source.name)}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: source });
+        const imported = await response.json();
+        if (!response.ok) throw new Error(imported.message ?? imported.error ?? 'Unable to open this workbook.');
+        if (index > 0 && onOpen) onOpen(imported.name); else openFile(imported.name);
+      }
+      await refreshFiles(); setNotice('Working copies imported. Your original files are unchanged. Imported files remain available in the workbook list.');
+    } catch (err) { setError((err as Error).message); }
+    finally { setImporting(false); if (localPicker.current) localPicker.current.value = ''; }
+  }
   async function refreshFiles() {
     const config = await request<{ files: { name: string }[] }>('/api/config');
     setFiles(config.files.map(item => item.name));
@@ -121,7 +153,8 @@ export function AnalystWorkspace() {
 
   function change(setter: (value: string) => void, value: string) { setter(value); setResult(null); setError(''); requestId.current++; }
   function openNewWorkbook() {
-    if (dirty) { setError('Save your canvas changes before starting a new workbook.'); return; }
+
+    if (file && availableSlots === 0) { setError('Close a tab before creating another workbook.'); return; }
     let candidate = 'Untitled.xlsx', suffix = 2;
     while (files.some(name => name.toLowerCase() === candidate.toLowerCase())) candidate = `Untitled ${suffix++}.xlsx`;
     setNewName(candidate); setCreateError(''); newWorkbookDialog.current?.showModal();
@@ -129,12 +162,13 @@ export function AnalystWorkspace() {
   async function createWorkbook(event: React.FormEvent) {
     event.preventDefault();
     if (creating) return;
-    if (dirty) { setCreateError('Save your canvas changes before starting a new workbook.'); return; }
+
     setCreating(true); setCreateError(''); requestId.current++;
     try {
       const created = await request<{ name: string; revision: string }>('/api/workbooks', { name: newName.trim() });
       setFiles(previous => [...new Set([...previous, created.name])].sort());
-      setFile(created.name); setSheet('Sheet1'); setRange('A1:D20'); setAddress('A1');
+      if (file && file !== created.name && onOpen) { newWorkbookDialog.current?.close(); onOpen(created.name); return; }
+      openFile(created.name); setSheet('Sheet1'); setRange('A1:D20'); setAddress('A1');
       setMode('context'); setResult(null); setExample(false); setError('');
       setNotice('Your blank workbook is ready. Enter data in the canvas, then Save to analyze it.');
       newWorkbookDialog.current?.close();
@@ -142,11 +176,13 @@ export function AnalystWorkspace() {
     finally { setCreating(false); }
   }
   async function loadExample() {
-    if (dirty) { setError('Save your canvas changes before opening the example.'); return; }
+
     setBusy(true); setError('');
     try {
       const data = await request<{ name: string }>('/api/analyst/example', {});
-      await refreshFiles(); setFile(data.name); setSheet('Model'); setRange('A1:D20'); setAddress('B8');
+      await refreshFiles();
+      if (file && file !== data.name && onOpen) { onOpen(data.name); return; }
+      openFile(data.name); setSheet('Model'); setRange('A1:D20'); setAddress('B8');
       setLeft('B11:B13'); setRight('D11:D13'); setInput('B3'); setValues('0, 0.1, 0.2'); setOutputs('B8');
       setDecision({ ...decisionDefaults }); setRules(structuredClone(initialRules)); setMode('context'); setResult(null); setExample(true); setNotice('Synthetic example ready. Start with Inspect, then try each review tool.');
     } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
@@ -199,14 +235,14 @@ export function AnalystWorkspace() {
     if (!result) return;
     downloadFile(`mog-${result.action}-evidence.json`, JSON.stringify(result, null, 2), 'application/json');
   }
-  return <div className="workbench">
+  return <div className={`workbench${expanded ? ' canvas-expanded' : ''}`}>
     <header className="workbench-header"><a className="wordmark" href="/analyst.html">mog<span> / </span><span>financial workbench</span></a><span className="local-label"><i />Local workspace</span></header>
-    <div className="workbook-bar"><div><label htmlFor="workbook">WORKBOOK</label><select id="workbook" value={file} disabled={busy || dirty} onChange={event => { requestId.current++; setFile(event.target.value); setExample(false); }}><option value="">Choose a workbook</option>{files.map(name => <option key={name}>{name}</option>)}</select></div><div className="workbook-actions"><button className="primary" onClick={openNewWorkbook} disabled={busy || dirty} data-testid="new-workbook">New workbook</button><button onClick={loadExample} disabled={busy} data-testid="load-example">Open financial example</button>{file && <a href={`/index.html?wb=${encodeURIComponent(file)}`} target="_blank" rel="noreferrer">Open full canvas ↗</a>}</div></div>
-    <dialog className="new-workbook-dialog" ref={newWorkbookDialog} aria-labelledby="new-workbook-title" onCancel={event => { if (creating) event.preventDefault(); }}>
+    <div className="workbook-bar"><div><label htmlFor={`${uniqueId}-workbook`}>WORKBOOK</label><select id={`${uniqueId}-workbook`} value={file} disabled={importing || creating || busy} onFocus={() => void refreshFiles().catch(err => setError(err.message))} onChange={event => { if (event.target.value) openFile(event.target.value); }}><option value="">Choose a workbook</option>{files.map(name => <option key={name}>{name}</option>)}</select></div><div className="workbook-actions"><input ref={localPicker} type="file" accept=".xlsx" multiple hidden aria-label="Choose local workbooks" onChange={event => void importFiles(event.target.files)} /><button onClick={() => localPicker.current?.click()} disabled={importing || creating || busy} data-testid="open-local-workbook">{importing ? 'Opening…' : 'Open local workbook'}</button><button className="primary" onClick={openNewWorkbook} disabled={importing || creating || busy} data-testid="new-workbook">New workbook</button><button onClick={loadExample} disabled={busy || importing || creating} data-testid="load-example">Open financial example</button>{file && <button data-testid="full-canvas" aria-pressed={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? 'Back to Review Desk' : 'Open full canvas'}</button>}</div></div>
+    <dialog className="new-workbook-dialog" ref={newWorkbookDialog} aria-labelledby={`${uniqueId}-new-workbook-title`} onCancel={event => { if (creating) event.preventDefault(); }}>
       <form onSubmit={createWorkbook}>
-        <span className="eyebrow">A FRESH WORKING PAPER</span><h2 id="new-workbook-title">New workbook</h2>
+        <span className="eyebrow">A FRESH WORKING PAPER</span><h2 id={`${uniqueId}-new-workbook-title`}>New workbook</h2>
         <p>Start with a blank sheet. Your Excel file stays on this computer.</p>
-        <label htmlFor="new-workbook-name">Workbook name</label><input id="new-workbook-name" data-testid="new-workbook-name" autoFocus required maxLength={120} value={newName} disabled={creating} onChange={event => setNewName(event.target.value)} />
+        <label htmlFor={`${uniqueId}-new-workbook-name`}>Workbook name</label><input id={`${uniqueId}-new-workbook-name`} data-testid={`${uniqueId}-new-workbook-name`} autoFocus required maxLength={120} value={newName} disabled={creating} onChange={event => setNewName(event.target.value)} />
         <p className="field-help">The .xlsx extension is added automatically. Existing files are never replaced.</p>
         {createError && <p role="alert" className="error" data-testid="create-workbook-error">{createError}</p>}
         <div className="new-workbook-actions"><button type="button" disabled={creating} onClick={() => newWorkbookDialog.current?.close()}>Cancel</button><button className="primary" type="submit" disabled={creating || !newName.trim()} data-testid="create-workbook">{creating ? 'Creating…' : 'Create workbook'}</button></div>
@@ -215,13 +251,16 @@ export function AnalystWorkspace() {
     <main className="workbench-body">
       <section className="sheet-stage" aria-label="Live spreadsheet">
         <div className="stage-caption"><span>WORKING PAPER</span><span>{file ? 'Live Mog canvas · human edits' : 'Your model, with the evidence beside it'}</span></div>
-        {file ? <iframe ref={canvasFrame} title="Live workbook canvas" key={file} src={`/index.html?wb=${encodeURIComponent(file)}&compact=1&embedded=1`} /> : <div className="empty-workbook"><span className="eyebrow">FROM MODEL TO ANSWER</span><h1>Understand the number.<br />Test the assumption.</h1><p>Start a workbook of your own, or explore a financial example with the evidence beside it.</p><div className="empty-workbook-actions"><button className="primary" onClick={openNewWorkbook} disabled={busy} data-testid="empty-new-workbook">New workbook</button><button onClick={loadExample} disabled={busy}>Try the financial example</button></div><p className="quiet">All workbook analysis stays on this computer. The example uses generated financial data.</p></div>}
-        <div className="stage-footer"><span>{dirty ? 'Unsaved edits in canvas — save before analyzing' : 'Analysis reads the saved workbook'}</span><span>Scenarios never save</span></div>
+        {file ? <iframe inert={applying || undefined} ref={canvasFrame} title="Live workbook canvas" key={`${file}-${canvasVersion}`} src={`/index.html?wb=${encodeURIComponent(file)}&compact=1&embedded=1`} /> : <div className="empty-workbook"><span className="eyebrow">FROM MODEL TO ANSWER</span><h1>Understand the number.<br />Test the assumption.</h1><p>Start a workbook of your own, or explore a financial example with the evidence beside it.</p><div className="empty-workbook-actions"><button className="primary" onClick={openNewWorkbook} disabled={busy || importing || creating} data-testid="empty-new-workbook">New workbook</button><button onClick={loadExample} disabled={busy || importing || creating}>Try the financial example</button></div><p className="quiet">Built-in calculations stay on this computer. Agent tasks use your signed-in Claude account. The example uses generated data.</p></div>}
+        <div className="stage-footer"><span>{applying && 'Applying reviewed changes… '}</span><span>{dirty ? 'Unsaved edits in canvas — save before analyzing' : 'Analysis reads the saved workbook'}</span><span>Scenarios never save</span></div>
       </section>
       <aside className="analysis-panel" aria-label="Analysis tools">
         <div className="panel-intro"><span className="eyebrow">REVIEW DESK</span><h2>Follow the evidence</h2><p>Exact cells. Explicit assumptions. Reproducible results.</p></div>
         <nav className="mode-tabs" aria-label="Analysis mode">{modes.map(item => <button key={item.id} aria-current={mode === item.id ? 'page' : undefined} onClick={() => { setMode(item.id); setResult(null); setError(''); requestId.current++; }} disabled={busy}>{item.label}</button>)}</nav><nav className="mode-tabs decision-tabs" aria-label="Decision tools">{decisionModes.map(item => <button key={item.id} data-testid={`mode-${item.id}`} aria-current={mode === item.id ? 'page' : undefined} onClick={() => { setMode(item.id); setResult(null); setError(''); requestId.current++; }} disabled={busy}>{item.label}</button>)}</nav>
-        <div className="analysis-content"><p className="mode-description">{current.description}</p>
+        <div className="analysis-content"><AgentDesk name={file} sheet={sheet} range={range} dirty={dirty} onWorking={reportAgentWorking} onApplying={setApplying} canApply={() => !canvasFrame.current?.contentDocument?.querySelector('.dot.dirty')} onApplied={() => {
+            if (canvasFrame.current?.contentDocument?.querySelector('.dot.dirty')) { setError('Agent changes were saved, but your canvas has newer unsaved edits. The canvas was kept open to preserve them.'); return; }
+            setCanvasVersion(value => value + 1); setResult(null);
+          }} /><p className="mode-description">{current.description}</p>
           {example && <div className="example-note"><strong>Example guide</strong><span>{mode === 'sensitivity' ? 'Growth × margin: the center case returns EBITDA 360,000.' : mode === 'drivers' ? 'Growth B3 and margin B4 are tested around saved EBITDA 360,000.' : mode === 'goalSeek' ? 'Target EBITDA 420,000 requires growth 0.2 (20%).' : mode === 'variance' ? 'Both lists total 1,000,000. Rows are positional amounts, not matched accounts or actual/budget.' : mode === 'checks' ? 'The example balances and exceeds the 300,000 EBITDA floor.' : mode === 'scenario' ? 'Growth of 0%, 10%, 20% → EBITDA 300,000 / 360,000 / 420,000.' : mode === 'reconcile' ? 'Assets and funding both total 1,000,000.' : mode === 'audit' ? 'D19 intentionally uses addition where its peers use multiplication. This is a review exercise.' : mode === 'explain' ? 'B8 = gross profit less operating costs. Expected EBITDA: 360,000.' : 'Inspect the saved model, then follow B8 through Explain.'}</span></div>}
           <form onSubmit={run}><fieldset disabled={busy || !file}><div className="form-row"><label>Sheet<select value={sheet} onChange={event => change(setSheet, event.target.value)}>{sheets.map(name => <option key={name}>{name}</option>)}</select></label><button className="selection-button" type="button" onClick={useSelection}>Use selection</button></div>
             {(mode === 'context' || mode === 'audit') && <label>Range<input value={range} onChange={event => change(setRange, event.target.value)} required placeholder="A1:D19" /></label>}

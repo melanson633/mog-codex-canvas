@@ -20,6 +20,7 @@
  * actionable failures without inventing their own taxonomy.
  */
 import { randomUUID } from 'node:crypto';
+import { inflateRawSync } from 'node:zlib';
 import { revisionOf } from './workbook-revision.ts';
 import { copyFile, link, open, readFile, readdir, rename, rm, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
@@ -72,6 +73,35 @@ import {
   rangeCoversCell,
   type ContextBus,
 } from './context-bus.ts';
+
+/** Bound decompression before the existing OOXML reader consumes uploaded ZIPs. */
+function validateImportArchive(bytes: Uint8Array): void {
+  const data = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let end = -1;
+  for (let index = data.length - 22; index >= Math.max(0, data.length - 65_557); index--) {
+    if (data.readUInt32LE(index) === 0x06054b50) { end = index; break; }
+  }
+  if (end < 0) throw new Error('Not a ZIP archive');
+  const count = data.readUInt16LE(end + 10);
+  let offset = data.readUInt32LE(end + 16);
+  let remaining = 250 * 1024 * 1024;
+  for (let index = 0; index < count; index++) {
+    if (data.readUInt32LE(offset) !== 0x02014b50) throw new Error('Invalid ZIP directory');
+    if (data.readUInt16LE(offset + 8) & 1) throw new Error('Encrypted ZIP');
+    const method = data.readUInt16LE(offset + 10);
+    const size = data.readUInt32LE(offset + 20);
+    const local = data.readUInt32LE(offset + 42);
+    if (data.readUInt32LE(local) !== 0x04034b50) throw new Error('Invalid ZIP entry');
+    if (data.readUInt16LE(local + 6) & 1) throw new Error('Encrypted ZIP');
+    const start = local + 30 + data.readUInt16LE(local + 26) + data.readUInt16LE(local + 28);
+    if (start + size > data.length || remaining <= 0) throw new Error('Workbook expands beyond 250 MB or is truncated');
+    const raw = data.subarray(start, start + size);
+    const length = method === 0 ? raw.length : method === 8 ? inflateRawSync(raw, { maxOutputLength: remaining }).length : -1;
+    if (length < 0 || length > remaining) throw new Error('Unsupported ZIP compression or workbook expands beyond 250 MB');
+    remaining -= length;
+    offset += 46 + data.readUInt16LE(offset + 28) + data.readUInt16LE(offset + 30) + data.readUInt16LE(offset + 32);
+  }
+}
 
 export type WorkbookErrorCode =
   | 'invalid-path'
@@ -221,6 +251,7 @@ export interface SaveResult {
 }
 
 export interface SaveContext {
+  readonly requireCleanCanvas?: boolean;
   /** Which lane the save came through. Defaults to 'bridge'. */
   readonly lane?: SaveLane;
   /** Who is saving. Defaults to a human actor; agents must say so. */
@@ -348,7 +379,18 @@ export interface WorkbookServiceOptions {
   readonly root: string;
 }
 
+export interface AgentCellChange {
+  readonly sheet: string;
+  readonly address: string;
+  readonly value: string | number | boolean | null;
+  readonly formula: string | null;
+}
+
 export interface WorkbookService {
+  loadAgentState(): Promise<unknown | null>;
+  saveAgentState(state: unknown): Promise<void>;
+  archiveAgentJobs(jobs: unknown[]): Promise<{ name: string; bytes: number }>;
+  applyAgentChanges(name: string, revision: string, changes: readonly AgentCellChange[], intent: string): Promise<{ name: string; revision: string; transactionId: string | null; screenshots: ScreenshotResult[]; validation: ValidationReport | null; warnings: string[] }>;
   /** Canonical workbook root this service is confined to. */
   readonly root: string;
 
@@ -356,6 +398,9 @@ export interface WorkbookService {
 
   /** Create a blank workbook without replacing an existing file. */
   createBlank(name: string): Promise<{ name: string; revision: string }>;
+
+  /** Import an unchanged copy, choosing a new name when one already exists. */
+  importWorkbook(name: string, bytes: Uint8Array): Promise<{ name: string; revision: string; originalName: string }>;
 
   /** Read current bytes without creating a session (dev-bridge GET). */
   read(name: string): Promise<{ bytes: Uint8Array; revision: string }>;
@@ -478,6 +523,7 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
   // One promotion at a time per target file. Expensive analysis (fidelity,
   // dependency trace) runs outside this; only the re-read/recheck, backup and
   // replacement — all fast — run inside.
+  let agentStateRevision: string | null | undefined;
   const promotionLocks = new Map<string, Promise<void>>();
   async function withPromotionLock<T>(file: string, action: () => Promise<T>): Promise<T> {
     const previous = promotionLocks.get(file) ?? Promise.resolve();
@@ -820,6 +866,10 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
 
     // ---- Promotion critical section: re-read, recheck, backup, replace. ----
     return withPromotionLock(file, async () => {
+      if (context.requireCleanCanvas && contextBus.get(name)?.dirty) {
+        throw new WorkbookError('occupied-cell-conflict', 'Save or discard your unsaved canvas edits before applying agent changes.');
+      }
+      if (context.requireCleanCanvas) checkCoordination(name, context);
       const latest = await readFile(file).catch(() => null);
       const beforeRevision = latest ? revisionOf(latest) : null;
       if (expectedRevision !== undefined && (beforeRevision ?? 'absent') !== expectedRevision) {
@@ -942,6 +992,132 @@ export function createWorkbookService(options: WorkbookServiceOptions): Workbook
   return {
     root,
     list,
+    async loadAgentState() {
+      const file = await policy(() => resolveSaveTarget(root, '.mog-agent-tasks.json', 'receipt'));
+      try {
+        const bytes = await readFile(file); const parsed: unknown = JSON.parse(bytes.toString('utf8'));
+        agentStateRevision = revisionOf(bytes); return parsed;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') { agentStateRevision = null; return null; }
+        throw new WorkbookError('validation-failed', 'Saved agent task state could not be read.');
+      }
+    },
+    async saveAgentState(state) {
+      const json = JSON.stringify(state);
+      if (json === undefined || Buffer.byteLength(json) > 5 * 1024 * 1024) throw new WorkbookError('validation-failed', 'Agent task state must be JSON under 5 MB. Archive finished task history to free space.');
+      if (agentStateRevision === undefined) throw new WorkbookError('revision-conflict', 'Load agent task state before saving it.');
+      const file = await policy(() => resolveSaveTarget(root, '.mog-agent-tasks.json', 'receipt'));
+      const lockFile = await policy(() => resolveSaveTarget(root, '.mog-agent-tasks-lock.json', 'receipt'));
+      await withPromotionLock(file, async () => {
+        const lock = await open(lockFile, 'wx').catch(error => {
+          if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new WorkbookError('revision-conflict', 'Another server is saving agent history. Retry; if the server stopped during a save, close all workbook servers before removing .mog-agent-tasks-lock.json.');
+          throw error;
+        });
+        try {
+          let current: string | null;
+          try { current = revisionOf(await readFile(file)); }
+          catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; current = null; }
+          if (current !== agentStateRevision) throw new WorkbookError('revision-conflict', 'Agent history changed in another server. Restart this server to load the current notes before saving; nothing was overwritten.');
+          const bytes = Buffer.from(json);
+          await replaceFile(file, bytes, { backup: true, exclusive: current === null });
+          agentStateRevision = revisionOf(bytes);
+        } finally { await lock.close(); await rm(lockFile, { force: true }); }
+      });
+    },
+    async archiveAgentJobs(jobs) {
+      if (!Array.isArray(jobs)) throw new WorkbookError('validation-failed', 'An agent job list is required.');
+      const bytes = Buffer.from(JSON.stringify({ version: 1, archivedAt: new Date().toISOString(), jobs }));
+      if (bytes.length > 20 * 1024 * 1024) throw new WorkbookError('validation-failed', 'Agent archive exceeds 20 MB.');
+      const name = `agent-history-${randomUUID()}.json`;
+      const file = await policy(() => resolveSaveTarget(root, name, 'receipt'));
+      await replaceFile(file, bytes, { backup: false, exclusive: true });
+      return { name, bytes: bytes.length };
+    },
+    async applyAgentChanges(name, revision, changes, intent) {
+      if (!Array.isArray(changes) || changes.length < 1 || changes.length > 100) throw new WorkbookError('validation-failed', 'Apply between 1 and 100 single-cell changes.');
+      if (typeof intent !== 'string' || !intent.trim() || intent.length > 2000) throw new WorkbookError('validation-failed', 'A short intent is required.');
+      for (const change of changes) {
+        const cell = change && typeof change.address === 'string' && /^\$?[A-Za-z]{1,3}\$?[1-9]\d*$/.test(change.address) ? parseRange(change.address) : null;
+        if (!cell || cell.startCol > 16384 || cell.startRow > 1048576 || typeof change.sheet !== 'string' || !change.sheet) throw new WorkbookError('validation-failed', 'Each change needs an existing sheet and a single valid Excel cell.');
+        if (change.formula !== null && (typeof change.formula !== 'string' || !change.formula.trim() || change.formula.length > 8192)) throw new WorkbookError('validation-failed', 'A formula must be nonempty text under 8192 characters.');
+        if (change.value !== null && !['string', 'number', 'boolean'].includes(typeof change.value) || typeof change.value === 'number' && !Number.isFinite(change.value) || typeof change.value === 'string' && change.value.length > 32767) throw new WorkbookError('validation-failed', 'Cell values must be finite numbers, booleans, text under 32767 characters, or null.');
+      }
+      const source = await read(name);
+      if (typeof revision !== 'string' || source.revision !== revision) throw new WorkbookError('revision-conflict', 'The workbook revision changed. Generate a fresh proposal before applying.');
+      if (contextBus.get(name)?.dirty) throw new WorkbookError('occupied-cell-conflict', 'Save or discard your unsaved canvas edits before applying agent changes.');
+      const touchedRanges = changes.map(change => `'${change.sheet.replace(/'/g, "''")}'!${change.address}`);
+      const context: SaveContext = { lane: 'headless', actor: { kind: 'agent', id: 'workbench-agent' }, intent, touchedRanges, requireCleanCanvas: true };
+      checkCoordination(name, context);
+      const { createWorkbook } = await import('@mog-sdk/sdk/node');
+      const workbook = await createWorkbook(Buffer.from(source.bytes));
+      let edited: Uint8Array;
+      const captures: { name: string; bytes: Uint8Array }[] = [];
+      try {
+        for (const change of changes) {
+          if (!workbook.sheetNames.includes(change.sheet)) throw new WorkbookError('validation-failed', `No sheet named ${change.sheet}.`);
+        }
+        for (const change of changes) {
+          const { sheet } = await workbook.getOrCreateSheet(change.sheet);
+          if (change.formula !== null) await sheet.setFormulas(change.address, [[change.formula]]);
+          else await sheet.setCell(change.address, change.value, { literal: true });
+        }
+        for (const sheetName of new Set(changes.map(change => change.sheet))) {
+          const { sheet } = await workbook.getOrCreateSheet(sheetName);
+          await sheet.summarize();
+          // One bounded image per touched cell avoids allocating a huge image
+          // for sparse changes at opposite ends of the worksheet.
+          for (const address of new Set(changes.filter(change => change.sheet === sheetName).map(change => change.address))) {
+            captures.push({ name: `agent-${randomUUID()}.png`, bytes: await workbook.captureScreenshot(sheet, address, { dpr: 1 }) });
+          }
+        }
+        edited = await workbook.toXlsx();
+      } finally { await workbook.dispose(); }
+      const saved = await save(name, edited, revision, context);
+      const screenshots: ScreenshotResult[] = [];
+      const warnings: string[] = [];
+      for (const capture of captures) {
+        try { screenshots.push(await writeScreenshot(capture.name, capture.bytes)); }
+        catch { warnings.push(`Changes were saved, but screenshot ${capture.name} could not be stored.`); }
+      }
+      let validation: ValidationReport | null = null;
+      try {
+        validation = await validate(name);
+        if (validation.revision !== saved.revision) warnings.push('The workbook changed again before post-save validation. The save receipt identifies the applied revision.');
+      } catch { warnings.push('Changes were saved, but post-save validation could not complete.'); }
+      return { name: saved.name, revision: saved.revision, transactionId: saved.transactionId, screenshots, validation, warnings };
+    },
+    async importWorkbook(originalName, bytes) {
+      if (typeof originalName !== 'string' || originalName.length > 120 ||
+          originalName !== originalName.trim() || !/\.xlsx$/i.test(originalName) ||
+          /[<>:"/\\|?*\u0000-\u001f]/.test(originalName)) {
+        throw new WorkbookError('invalid-path', 'Choose an .xlsx file with a name of up to 120 characters, without path separators or reserved characters.');
+      }
+      const stem = originalName.slice(0, -5);
+      if (!stem || /^[.]/.test(stem) || /[. ]$/.test(stem) || /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(stem)) {
+        throw new WorkbookError('invalid-path', 'Choose a valid workbook name without leading dots or a reserved Windows name.');
+      }
+      if (bytes.byteLength > 50 * 1024 * 1024) throw new WorkbookError('validation-failed', 'Workbook import exceeds 50 MB.');
+      try { validateImportArchive(bytes); }
+      catch {
+        throw new WorkbookError('validation-failed', 'Choose a valid, unencrypted .xlsx workbook. Expanded workbook contents must fit within 250 MB. Save a fresh unencrypted copy in Excel and try again.');
+      }
+      const profile = profileWorkbook(bytes);
+      if (profile.status !== 'profiled' || profile.sheets.length === 0) {
+        throw new WorkbookError('validation-failed', 'This is not a readable .xlsx workbook. Encrypted or password-protected files must first be saved as an unencrypted .xlsx copy in Excel.');
+      }
+      for (let suffix = 1; suffix <= 1000; suffix++) {
+        const name = suffix === 1 ? originalName : `${stem} (${suffix}).xlsx`;
+        const file = await policy(() => resolveSaveTarget(root, name, 'workbook'));
+        if (await stat(file).catch(() => null)) continue;
+        try {
+          const saved = await save(name, bytes, 'absent', { lane: 'canvas', actor: { kind: 'human', id: 'dev-canvas' }, intent: 'Import workbook copy' });
+          return { name: saved.name, revision: saved.revision, originalName };
+        } catch (error) {
+          if (!(error instanceof WorkbookError) || error.code !== 'revision-conflict') throw error;
+        }
+      }
+      throw new WorkbookError('revision-conflict', 'Too many workbook copies share this name. Rename the source file and try again.');
+    },
     async createBlank(requestedName) {
       if (typeof requestedName !== 'string' || requestedName.length > 120 ||
           requestedName !== requestedName.trim() || /[<>:"/\\|?*\u0000-\u001f]/.test(requestedName)) {

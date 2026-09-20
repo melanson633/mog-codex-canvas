@@ -50,15 +50,37 @@ export function createProductionServer(options: ProductionOptions) {
       if (!rel || rel.startsWith('..') || isAbsolute(rel)) { res.writeHead(403).end('Forbidden'); return; }
       const info = await stat(canonical);
       if (!info.isFile()) { res.writeHead(404).end('Not found'); return; }
-      res.writeHead(200, {
+      // Engine assets include a large WASM binary. Keep no-cache semantics so
+      // an SDK update at the stable /mog/ URL is never used stale, but give
+      // browsers a validator so a warm open costs a 304 instead of 41 MB.
+      const etag = `W/\"${info.size.toString(16)}-${Math.trunc(info.mtimeMs).toString(16)}\"`;
+      const lastModified = info.mtime.toUTCString();
+      const notModified = matchesValidator(req.headers, etag, info.mtimeMs);
+      const headers = {
         'content-type': types[extname(canonical)] ?? 'application/octet-stream',
         'content-length': info.size,
         'cache-control': root === dist && /[.-][A-Za-z0-9_-]{8,}\.(?:js|css)$/.test(target) ? 'public, max-age=31536000, immutable' : 'no-cache',
-      });
+        etag,
+        'last-modified': lastModified,
+      };
+      if (notModified) { res.writeHead(304, headers).end(); return; }
+      res.writeHead(200, headers);
       if (req.method === 'HEAD') res.end();
       else createReadStream(canonical).on('error', () => res.destroy()).pipe(res);
     } catch { if (!res.headersSent) res.writeHead(400).end('Invalid request'); else res.destroy(); }
   });
+}
+
+/** RFC 9110 validators for static bytes. If-None-Match takes precedence. */
+function matchesValidator(headers: Record<string, string | string[] | undefined>, etag: string, mtimeMs: number) {
+  const noneMatch = headers['if-none-match'];
+  if (typeof noneMatch === 'string') {
+    return noneMatch.split(',').some((value) => value.trim() === '*' || value.trim() === etag);
+  }
+  const modifiedSince = headers['if-modified-since'];
+  if (typeof modifiedSince !== 'string') return false;
+  const timestamp = Date.parse(modifiedSince);
+  return Number.isFinite(timestamp) && Math.floor(mtimeMs / 1_000) <= Math.floor(timestamp / 1_000);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -3,7 +3,8 @@
 Run `npm run build`, then `npm start`; open http://127.0.0.1:5276. The root is
 `workbooks/` unless `MOG_WORKBOOK_DIR` is set. The production server binds only
 to loopback, rejects foreign origins, and serves the built UI and Mog runtime.
-No cloud host or external AI service is required.
+No cloud host is required. The calculation and review tools run locally; the
+optional **Save & run** action uses the signed-in Claude account.
 
 ## Workflow
 
@@ -12,6 +13,44 @@ a blank `.xlsx` with an empty `Sheet1`. Existing names are never overwritten.
 You can also open an existing workbook or create the financial example. Human edits occur in the real
 canvas. Save those changes before analyzing. Use selection copies the current
 canvas cell/range into the analysis form.
+
+**Open local workbook** accepts one or more `.xlsx` files from the device and
+imports copies into the managed workbook folder. The original files stay unchanged;
+duplicate names receive a numeric suffix. Files may be up to 50 MiB, although
+individual analysis tools have smaller limits below.
+
+Keep up to four workbook tabs open. Switching tabs preserves the live canvas,
+unsaved edits, analysis inputs and note drafts. Save before closing a workbook.
+**Open full canvas** expands the current spreadsheet without opening or loading
+another copy; **Back to Review Desk** brings the tools back.
+
+### Notes and agent requests
+
+Open **Notes & requests** in the Review Desk. Attach instructions to a workbook,
+sheet or cell range, or use **Use selected cells**. **Save note** keeps them on
+this computer for later. **Save & run** sends the note and bounded saved-cell
+context to the signed-in Claude account and starts a tracked request. The local
+runner requires an installed, authenticated Claude Code CLI.
+
+Two requests on different workbooks can run at once. Requests for the same
+workbook run in order. Switching or closing a clean tab does not stop a request;
+saved notes and results survive reload. A server restart marks unfinished requests
+interrupted rather than rerunning them automatically.
+
+Answers appear beside the note. Proposed edits require **Preview** and **Apply
+these changes**. Apply checks the saved revision and unsaved canvas edits, then
+saves through the workbook service and records verification and range screenshots.
+The model has no shell or general file tools.
+
+**Archive finished requests** moves finished answers, receipts and unapplied
+proposals into a local JSON archive and downloads a copy. Saved notes remain
+available to run again. Archiving frees space in the active request history.
+While a reviewed edit saves, other workbooks remain available.
+
+Agent context is bounded: selected ranges cover at most 500 cells; sheet requests
+read A1:T25; workbook requests read A1:T25 on the first four sheets. Choose a
+specific range for another area. A request can propose at most 50 cell edits.
+These are scope limits, not a whole-workbook audit. Failures remain visible.
 
 - **Inspect:** saved values and formula text, at exact addresses. Repeated
   queries reuse a four-entry revision index. Each request still reads and hashes
@@ -59,7 +98,8 @@ edits. Raw evidence can contain workbook data; share it only with intended recip
 
 ## Privacy and completeness
 
-Analysis is local. High-risk personal-data labels or SSN-shaped values suppress
+Calculation and rule-based analysis are local. Agent requests send their disclosed
+scope to Claude. High-risk personal-data labels or SSN-shaped values suppress
 the entire workbook's new analysis results, including derivatives. This is
 conservative: an unrelated sensitive label can make these tools unavailable.
 Unlabelled numeric birthdates cannot be recognized. Oversized or unsupported

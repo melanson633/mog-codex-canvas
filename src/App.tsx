@@ -30,6 +30,10 @@ export function App() {
   const [config, setConfig] = useState<BridgeConfig | null>(null);
   const [file, setFile] = useState<string | null>(null);
   const [status, setStatus] = useState('starting');
+  // The canvas can be mounted while its renderer is still compiling and
+  // hydrating. Keep that work visible in the canvas itself until the embed
+  // reports it can answer a real query.
+  const [canvasReady, setCanvasReady] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Navigation has its own failure channel: a later successful reveal clears
@@ -131,7 +135,9 @@ export function App() {
     setCoordWarning(null);
     setProfile(null);
     setProfileError(null);
+    setCanvasReady(false);
     setStatus('loading workbook');
+    performance.mark('mog-canvas:open-start');
 
     // Shape-first: profile the saved bytes immediately, in parallel with the
     // canvas open below. The panel renders in milliseconds; the renderer may
@@ -201,12 +207,14 @@ export function App() {
       }
 
       try {
-        const adapter = await resolveCanvasAdapter();
+        // The browser engine and the saved workbook have no dependency on one
+        // another. Starting both lets disk I/O disappear behind module load.
+        const adapterPromise = resolveCanvasAdapter();
+        const workbookPromise = readWorkbook(file);
+        const [adapter, { bytes, revision }] = await Promise.all([adapterPromise, workbookPromise]);
         if (stale) return;
+        performance.mark('mog-canvas:engine-and-workbook-ready');
         setProbe(adapter.probe);
-
-        const { bytes, revision } = await readWorkbook(file);
-        if (stale) return;
 
         // The revision this canvas last saw on disk. Saves send it as the
         // expected base; a concurrent writer makes the save fail with a 409
@@ -233,7 +241,11 @@ export function App() {
               }
             },
             onDirtyChange: setDirty,
-            onStatus: setStatus,
+            onStatus: (nextStatus) => {
+              setStatus(nextStatus);
+              performance.mark(`mog-canvas:${nextStatus}`);
+              if (nextStatus === 'renderer ready') setCanvasReady(true);
+            },
             onError: (cause) =>
               setError(cause instanceof Error ? cause.message : JSON.stringify(cause)),
             onContext: (snapshot) => {
@@ -444,7 +456,15 @@ export function App() {
         </section>
       )}
 
-      <div className="canvas" ref={canvasRef} />
+      <div className="canvas-stage">
+        <div className="canvas" ref={canvasRef} data-startup-phase={status} data-canvas-ready={canvasReady} />
+        {!canvasReady && file && !error && probe?.available !== false && (
+          <div className="canvas-loading" role="status" aria-live="polite">
+            <strong>Opening {file}</strong>
+            <span>{status}</span>
+          </div>
+        )}
+      </div>
 
       {report && (
         <section className="report">

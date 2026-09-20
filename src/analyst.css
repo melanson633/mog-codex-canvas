@@ -134,3 +134,34 @@ body { margin: 0; }
 .new-workbook-dialog .new-workbook-actions { justify-content: flex-end; margin-top: 24px; }
 @media (min-width: 1100px) { .workbench-body { grid-template-columns: minmax(0,1fr) 460px; } }
 @media (max-width: 420px) { .analysis-content { padding: 16px; } .workbench .mode-tabs button { padding: 10px 7px; } }
+
+/* Workbook desks stay mounted when switching, preserving live edits and results. */
+.parallel-workbench [hidden] { display: none !important; }
+.workbook-tabs { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 18px; background: #e5ebe5; border-bottom: 1px solid #cad4ce; font-size: 11px; }
+.workbook-tabs [role=tablist] { display: flex; gap: 6px; overflow-x: auto; min-width: 0; }
+.workbook-tab { display: flex; flex-shrink: 0; border: 1px solid #cad4ce; border-radius: 5px; background: #f6f8f3; }
+.workbook-tab button { border: 0; background: transparent; color: #35534b; cursor: pointer; padding: 9px 10px; font: inherit; }
+.workbook-tab [aria-selected=true] { background: #175c4e; color: white; border-radius: 4px 0 0 4px; }
+.workbook-tab [role=tab] { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-notice { padding: 10px 24px; background: #fff4d8; display: flex; justify-content: space-between; }
+.parallel-workbench .workbench { min-height: calc(100dvh - 46px); }
+.workbook-actions { flex-wrap: wrap; gap: 8px; }
+.canvas-expanded .workbench-body { grid-template-columns: minmax(0, 1fr); }
+.canvas-expanded .analysis-panel { display: none; }
+@media (min-width: 761px) { .parallel-workbench .workbench-body { height: calc(100dvh - 192px); } }
+@media (max-width: 760px) { .workbook-tabs > span { display: none; } .workbook-bar { flex-wrap: wrap; padding: 12px 16px; } .workbook-bar select { min-width: 0; max-width: 85vw; } .workbook-actions { width: 100%; } .workbook-actions button { flex: 1; } }
+.agent-desk { border-bottom: 1px solid #cad8cb; padding-bottom: 22px; margin-bottom: 24px; }
+.agent-desk h3 { font-family: Georgia, serif; font-size: 20px; font-weight: 400; }
+.agent-desk label { display: flex; flex: 1; flex-direction: column; gap: 6px; margin-bottom: 13px; font-weight: 600; font-size: 12px; min-width: 0; }
+.agent-desk select { width: 100%; border: 1px solid #cdd8cf; background: #fff; padding: 9px 10px; border-radius: 4px; color: #233e35; min-height: 36px; }
+.agent-desk textarea { resize: vertical; width: 100%; min-height: 88px; font: inherit; line-height: 1.6; border: 1px solid #cad4ce; border-radius: 5px; padding: 10px; background: white; color: #233a39; }
+.agent-actions, .note-heading { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.note-heading { justify-content: space-between; }
+.saved-note { margin-top: 18px; padding: 14px; border: 1px solid #d6dfd5; border-radius: 6px; background: #f5f7f1; }
+.note-text, .agent-answer { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
+.agent-job { border-top: 1px solid #d6dfd5; margin-top: 12px; padding-top: 12px; }
+.agent-job summary { cursor: pointer; padding: 10px 0; color: #176653; }
+.agent-job [data-status=running] { color: #176653; }
+.agent-desk > summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 9px; padding: 4px 0; }
+.agent-desk > summary strong { font-weight: 500; }
+.agent-desk > summary > span:last-child { margin-left: auto; color: #657b70; font-size: 11px; }

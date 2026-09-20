@@ -10,7 +10,9 @@ in two forms that share one workbook service and one security policy:
 2. **A standalone financial workbench** — a local production app with a live
    canvas, saved-cell inspection, dependency tracing, formula review, tie-outs,
    disposable scenarios, sensitivity, goal seek, driver analysis, variance bridges,
-   reusable check packs and a printable evidence notebook. See the
+   reusable check packs and a printable evidence notebook. Open local XLSX copies,
+   keep four workbook tabs, and run scoped agent notes on two workbooks at once.
+   Agent requests use the signed-in Claude account and preview edits before Apply. See the
    [workbench guide](docs/CONSULTANT-WORKBENCH.md). A Vite dev server is also available.
 
 The canvas is the real thing in both: `@mog-sdk/spreadsheet-app`, the same

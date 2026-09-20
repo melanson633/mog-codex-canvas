@@ -40,23 +40,19 @@ export const EMBED_IMPORTS: EmbedImports = {
 export async function resolveCanvasAdapter(
   imports: EmbedImports = EMBED_IMPORTS,
 ): Promise<CanvasAdapter> {
-  // The stylesheet first, so it is in the document before any grid paints. It
-  // still lands after src/styles.css — which src/main.tsx imports statically,
-  // before this ever runs — so the app's own rules keep the last word.
-  try {
-    await imports.styles();
-  } catch (error) {
+  // Start both independent requests together. The stylesheet still lands
+  // before the grid mounts (open() runs only after this resolves), while the
+  // engine module no longer waits behind a separate CSS network round-trip.
+  const [styles, module] = await Promise.allSettled([imports.styles(), imports.module()]);
+  if (styles.status === 'rejected') {
     return createUnavailableAdapter(
-      `Failed to load @mog-sdk/spreadsheet-app/styles.css: ${reason(error)}`,
+      `Failed to load @mog-sdk/spreadsheet-app/styles.css: ${reason(styles.reason)}`,
     );
   }
-
-  let embed: EmbedModule;
-  try {
-    embed = await imports.module();
-  } catch (error) {
-    return createUnavailableAdapter(`Failed to load @mog-sdk/spreadsheet-app: ${reason(error)}`);
+  if (module.status === 'rejected') {
+    return createUnavailableAdapter(`Failed to load @mog-sdk/spreadsheet-app: ${reason(module.reason)}`);
   }
+  const embed = module.value;
 
   if (
     typeof embed.createSpreadsheetRuntime !== 'function' ||
