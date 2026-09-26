@@ -1,0 +1,522 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Mog · Decision evidence</title><style>body{font:15px/1.6 system-ui;color:#233a39;max-width:1000px;margin:50px auto;padding:24px}h1,h2{font-family:Georgia,serif}section{border-top:1px solid #cad4ce;margin-top:30px;padding-top:20px}.status{color:#526c5e}table{width:100%;border-collapse:collapse;margin:12px 0 22px}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #dce4de;padding:8px}th{background:#f0f3ee}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f4ef;padding:20px;font-size:12px}summary{cursor:pointer}@media print{section{break-before:page}pre,th{background:white}}</style></head><body><h1>Decision evidence</h1><p>Workbook: consultant-example.xlsx<br>Saved revision: 3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd</p><p>Prepared 2026-09-19T21:11:48.366Z. A session record of explicit assumptions and calculated results. Saved workbook analysis excludes unsaved edits. Sensitivity and driver results describe these tested assumptions only; they do not establish causation or forecasts.</p><section><h2>1. sensitivity</h2><p class="status">Status: calculated</p><h3>Outcome</h3><p><strong>Output:</strong> B8. Rows vary B3; columns vary B4.</p><table><thead><tr><th>B3 / B4</th><th>0.5</th><th>0.6</th><th>0.7</th></tr></thead><tbody><tr><td>0</td><td>200,000</td><td>300,000</td><td>400,000</td></tr><tr><td>0.1</td><td>250,000</td><td>360,000</td><td>470,000</td></tr><tr><td>0.2</td><td>300,000</td><td>420,000</td><td>540,000</td></tr></tbody></table><h3>Exact sources and assumptions</h3><table><thead><tr><th>Source or assumption</th><th>Value</th></tr></thead><tbody><tr><td>sheet</td><td>Model</td></tr><tr><td>rowInput</td><td>B3</td></tr><tr><td>colInput</td><td>B4</td></tr><tr><td>rowValues</td><td>[0,0.1,0.2]</td></tr><tr><td>colValues</td><td>[0.5,0.6,0.7]</td></tr><tr><td>output</td><td>B8</td></tr></tbody></table><h3>Coverage and limitations</h3><p><strong>Requested scope reported complete.</strong></p><ul><li>Only the listed row and column combinations were tested; untested cases are outside this evidence.</li><li>Supported models are single-sheet and limited to local arithmetic plus SUM, MIN, MAX, AVERAGE, ABS, ROUND and IF.</li><li>Sensitivity results describe tested assumptions only; they are not forecasts and do not establish causation.</li></ul><details><summary>Full result and provenance</summary><pre>{
+  &quot;revision&quot;: &quot;3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd&quot;,
+  &quot;sheet&quot;: &quot;Model&quot;,
+  &quot;sourceUnchanged&quot;: true,
+  &quot;basis&quot;: &quot;disposable-engine&quot;,
+  &quot;status&quot;: &quot;calculated&quot;,
+  &quot;rowInput&quot;: &quot;B3&quot;,
+  &quot;colInput&quot;: &quot;B4&quot;,
+  &quot;output&quot;: &quot;B8&quot;,
+  &quot;rowValues&quot;: [
+    0,
+    0.1,
+    0.2
+  ],
+  &quot;colValues&quot;: [
+    0.5,
+    0.6,
+    0.7
+  ],
+  &quot;cases&quot;: [
+    {
+      &quot;rowValue&quot;: 0,
+      &quot;colValue&quot;: 0.5,
+      &quot;output&quot;: 200000
+    },
+    {
+      &quot;rowValue&quot;: 0,
+      &quot;colValue&quot;: 0.6,
+      &quot;output&quot;: 300000
+    },
+    {
+      &quot;rowValue&quot;: 0,
+      &quot;colValue&quot;: 0.7,
+      &quot;output&quot;: 400000
+    },
+    {
+      &quot;rowValue&quot;: 0.1,
+      &quot;colValue&quot;: 0.5,
+      &quot;output&quot;: 250000
+    },
+    {
+      &quot;rowValue&quot;: 0.1,
+      &quot;colValue&quot;: 0.6,
+      &quot;output&quot;: 360000
+    },
+    {
+      &quot;rowValue&quot;: 0.1,
+      &quot;colValue&quot;: 0.7,
+      &quot;output&quot;: 470000
+    },
+    {
+      &quot;rowValue&quot;: 0.2,
+      &quot;colValue&quot;: 0.5,
+      &quot;output&quot;: 300000
+    },
+    {
+      &quot;rowValue&quot;: 0.2,
+      &quot;colValue&quot;: 0.6,
+      &quot;output&quot;: 420000
+    },
+    {
+      &quot;rowValue&quot;: 0.2,
+      &quot;colValue&quot;: 0.7,
+      &quot;output&quot;: 540000
+    }
+  ],
+  &quot;matrix&quot;: [
+    [
+      200000,
+      300000,
+      400000
+    ],
+    [
+      250000,
+      360000,
+      470000
+    ],
+    [
+      300000,
+      420000,
+      540000
+    ]
+  ],
+  &quot;coverage&quot;: {
+    &quot;complete&quot;: true,
+    &quot;limitations&quot;: [
+      &quot;Only the listed row and column combinations were tested; untested cases are outside this evidence.&quot;,
+      &quot;Supported models are single-sheet and limited to local arithmetic plus SUM, MIN, MAX, AVERAGE, ABS, ROUND and IF.&quot;,
+      &quot;Sensitivity results describe tested assumptions only; they are not forecasts and do not establish causation.&quot;
+    ]
+  },
+  &quot;action&quot;: &quot;sensitivity&quot;,
+  &quot;workbook&quot;: &quot;consultant-example.xlsx&quot;,
+  &quot;elapsedMs&quot;: 550.2,
+  &quot;evidence&quot;: {
+    &quot;generatedAt&quot;: &quot;2026-09-19T21:11:39.575Z&quot;,
+    &quot;source&quot;: &quot;saved-workbook&quot;,
+    &quot;unsavedCanvasChangesIncluded&quot;: false,
+    &quot;request&quot;: {
+      &quot;action&quot;: &quot;sensitivity&quot;,
+      &quot;name&quot;: &quot;consultant-example.xlsx&quot;,
+      &quot;sheet&quot;: &quot;Model&quot;,
+      &quot;rowInput&quot;: &quot;B3&quot;,
+      &quot;rowValues&quot;: [
+        0,
+        0.1,
+        0.2
+      ],
+      &quot;colInput&quot;: &quot;B4&quot;,
+      &quot;colValues&quot;: [
+        0.5,
+        0.6,
+        0.7
+      ],
+      &quot;output&quot;: &quot;B8&quot;
+    }
+  }
+}</pre></details></section><section><h2>2. drivers</h2><p class="status">Status: calculated</p><h3>Outcome</h3><p><strong>Baseline output:</strong> 360,000</p><table><thead><tr><th>Input</th><th>Low output</th><th>Low change</th><th>High output</th><th>High change</th></tr></thead><tbody><tr><td>B4</td><td>250,000</td><td>-110,000</td><td>470,000</td><td>110,000</td></tr><tr><td>B3</td><td>300,000</td><td>-60,000</td><td>420,000</td><td>60,000</td></tr></tbody></table><h3>Exact sources and assumptions</h3><table><thead><tr><th>Source or assumption</th><th>Value</th></tr></thead><tbody><tr><td>sheet</td><td>Model</td></tr><tr><td>output</td><td>B8</td></tr><tr><td>inputs</td><td>[{&quot;cell&quot;:&quot;B3&quot;,&quot;low&quot;:0,&quot;high&quot;:0.2},{&quot;cell&quot;:&quot;B4&quot;,&quot;low&quot;:0.5,&quot;high&quot;:0.7}]</td></tr></tbody></table><h3>Coverage and limitations</h3><p><strong>Requested scope reported complete.</strong></p><ul><li>Only the listed low and high case for each driver was tested, with one input changed at a time.</li><li>Supported models are single-sheet and limited to local arithmetic plus SUM, MIN, MAX, AVERAGE, ABS, ROUND and IF.</li><li>Driver results describe tested assumptions only; they are not forecasts and do not establish causation.</li></ul><details><summary>Full result and provenance</summary><pre>{
+  &quot;revision&quot;: &quot;3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd&quot;,
+  &quot;sheet&quot;: &quot;Model&quot;,
+  &quot;sourceUnchanged&quot;: true,
+  &quot;basis&quot;: &quot;disposable-engine&quot;,
+  &quot;status&quot;: &quot;calculated&quot;,
+  &quot;output&quot;: &quot;B8&quot;,
+  &quot;baseline&quot;: 360000,
+  &quot;drivers&quot;: [
+    {
+      &quot;cell&quot;: &quot;B4&quot;,
+      &quot;low&quot;: 0.5,
+      &quot;high&quot;: 0.7,
+      &quot;baselineInput&quot;: 0.6,
+      &quot;lowOutput&quot;: 250000,
+      &quot;highOutput&quot;: 470000,
+      &quot;lowDelta&quot;: -110000,
+      &quot;highDelta&quot;: 110000,
+      &quot;span&quot;: 220000
+    },
+    {
+      &quot;cell&quot;: &quot;B3&quot;,
+      &quot;low&quot;: 0,
+      &quot;high&quot;: 0.2,
+      &quot;baselineInput&quot;: 0.1,
+      &quot;lowOutput&quot;: 300000,
+      &quot;highOutput&quot;: 420000,
+      &quot;lowDelta&quot;: -60000,
+      &quot;highDelta&quot;: 60000,
+      &quot;span&quot;: 120000
+    }
+  ],
+  &quot;cases&quot;: [
+    {
+      &quot;inputs&quot;: {},
+      &quot;output&quot;: 360000
+    },
+    {
+      &quot;inputs&quot;: {
+        &quot;B3&quot;: 0
+      },
+      &quot;output&quot;: 300000
+    },
+    {
+      &quot;inputs&quot;: {
+        &quot;B3&quot;: 0.2
+      },
+      &quot;output&quot;: 420000
+    },
+    {
+      &quot;inputs&quot;: {
+        &quot;B4&quot;: 0.5
+      },
+      &quot;output&quot;: 250000
+    },
+    {
+      &quot;inputs&quot;: {
+        &quot;B4&quot;: 0.7
+      },
+      &quot;output&quot;: 470000
+    }
+  ],
+  &quot;coverage&quot;: {
+    &quot;complete&quot;: true,
+    &quot;limitations&quot;: [
+      &quot;Only the listed low and high case for each driver was tested, with one input changed at a time.&quot;,
+      &quot;Supported models are single-sheet and limited to local arithmetic plus SUM, MIN, MAX, AVERAGE, ABS, ROUND and IF.&quot;,
+      &quot;Driver results describe tested assumptions only; they are not forecasts and do not establish causation.&quot;
+    ]
+  },
+  &quot;action&quot;: &quot;drivers&quot;,
+  &quot;workbook&quot;: &quot;consultant-example.xlsx&quot;,
+  &quot;elapsedMs&quot;: 464.31,
+  &quot;evidence&quot;: {
+    &quot;generatedAt&quot;: &quot;2026-09-19T21:11:40.189Z&quot;,
+    &quot;source&quot;: &quot;saved-workbook&quot;,
+    &quot;unsavedCanvasChangesIncluded&quot;: false,
+    &quot;request&quot;: {
+      &quot;action&quot;: &quot;drivers&quot;,
+      &quot;name&quot;: &quot;consultant-example.xlsx&quot;,
+      &quot;sheet&quot;: &quot;Model&quot;,
+      &quot;inputs&quot;: [
+        {
+          &quot;cell&quot;: &quot;B3&quot;,
+          &quot;low&quot;: 0,
+          &quot;high&quot;: 0.2
+        },
+        {
+          &quot;cell&quot;: &quot;B4&quot;,
+          &quot;low&quot;: 0.5,
+          &quot;high&quot;: 0.7
+        }
+      ],
+      &quot;output&quot;: &quot;B8&quot;
+    }
+  }
+}</pre></details></section><section><h2>3. goalSeek</h2><p class="status">Status: converged</p><h3>Outcome</h3><p><strong>Target reached within tolerance.</strong> Candidate input 0.19999998807907104 produced output 419999.9928474426, with residual -0.007152557373046875 after 24 iterations.</p><h3>Exact sources and assumptions</h3><table><thead><tr><th>Source or assumption</th><th>Value</th></tr></thead><tbody><tr><td>sheet</td><td>Model</td></tr><tr><td>input</td><td>B3</td></tr><tr><td>output</td><td>B8</td></tr><tr><td>target</td><td>420,000</td></tr><tr><td>lower</td><td>0</td></tr><tr><td>upper</td><td>1</td></tr><tr><td>tolerance</td><td>0.01</td></tr></tbody></table><h3>Coverage and limitations</h3><p><strong>Requested scope reported complete.</strong></p><ul><li>Only points evaluated inside the supplied bracket were tested; behavior outside that bracket is unknown.</li><li>Supported models are single-sheet and limited to local arithmetic plus SUM, MIN, MAX, AVERAGE, ABS, ROUND and IF.</li><li>A local bracket can contain multiple solutions or cross a discontinuity; convergence does not prove uniqueness or continuity.</li><li>The solution describes this saved model and tested assumptions only; it is not a forecast and does not establish causation.</li></ul><details><summary>Full result and provenance</summary><pre>{
+  &quot;revision&quot;: &quot;3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd&quot;,
+  &quot;sheet&quot;: &quot;Model&quot;,
+  &quot;sourceUnchanged&quot;: true,
+  &quot;basis&quot;: &quot;disposable-engine&quot;,
+  &quot;status&quot;: &quot;converged&quot;,
+  &quot;solution&quot;: 0.19999998807907104,
+  &quot;value&quot;: 419999.9928474426,
+  &quot;residual&quot;: -0.007152557373046875,
+  &quot;iterations&quot;: 24,
+  &quot;cases&quot;: [
+    {
+      &quot;input&quot;: 0,
+      &quot;value&quot;: 300000,
+      &quot;residual&quot;: -120000
+    },
+    {
+      &quot;input&quot;: 1,
+      &quot;value&quot;: 900000,
+      &quot;residual&quot;: 480000
+    },
+    {
+      &quot;input&quot;: 0.5,
+      &quot;value&quot;: 600000,
+      &quot;residual&quot;: 180000
+    },
+    {
+      &quot;input&quot;: 0.25,
+      &quot;value&quot;: 450000,
+      &quot;residual&quot;: 30000
+    },
+    {
+      &quot;input&quot;: 0.125,
+      &quot;value&quot;: 375000,
+      &quot;residual&quot;: -45000
+    },
+    {
+      &quot;input&quot;: 0.1875,
+      &quot;value&quot;: 412500,
+      &quot;residual&quot;: -7500
+    },
+    {
+      &quot;input&quot;: 0.21875,
+      &quot;value&quot;: 431250,
+      &quot;residual&quot;: 11250
+    },
+    {
+      &quot;input&quot;: 0.203125,
+      &quot;value&quot;: 421875,
+      &quot;residual&quot;: 1875
+    },
+    {
+      &quot;input&quot;: 0.1953125,
+      &quot;value&quot;: 417187.5,
+      &quot;residual&quot;: -2812.5
+    },
+    {
+      &quot;input&quot;: 0.19921875,
+      &quot;value&quot;: 419531.25,
+      &quot;residual&quot;: -468.75
+    },
+    {
+      &quot;input&quot;: 0.201171875,
+      &quot;value&quot;: 420703.125,
+      &quot;residual&quot;: 703.125
+    },
+    {
+      &quot;input&quot;: 0.2001953125,
+      &quot;value&quot;: 420117.1875,
+      &quot;residual&quot;: 117.1875
+    },
+    {
+      &quot;input&quot;: 0.19970703125,
+      &quot;value&quot;: 419824.21875,
+      &quot;residual&quot;: -175.78125
+    },
+    {
+      &quot;input&quot;: 0.199951171875,
+      &quot;value&quot;: 419970.703125,
+      &quot;residual&quot;: -29.296875
+    },
+    {
+      &quot;input&quot;: 0.2000732421875,
+      &quot;value&quot;: 420043.9453125,
+      &quot;residual&quot;: 43.9453125
+    },
+    {
+      &quot;input&quot;: 0.20001220703125,
+      &quot;value&quot;: 420007.32421875,
+      &quot;residual&quot;: 7.32421875
+    },
+    {
+      &quot;input&quot;: 0.199981689453125,
+      &quot;value&quot;: 419989.013671875,
+      &quot;residual&quot;: -10.986328125
+    },
+    {
+      &quot;input&quot;: 0.1999969482421875,
+      &quot;value&quot;: 419998.1689453125,
+      &quot;residual&quot;: -1.8310546875
+    },
+    {
+      &quot;input&quot;: 0.20000457763671875,
+      &quot;value&quot;: 420002.74658203125,
+      &quot;residual&quot;: 2.74658203125
+    },
+    {
+      &quot;input&quot;: 0.20000076293945312,
+      &quot;value&quot;: 420000.4577636719,
+      &quot;residual&quot;: 0.457763671875
+    },
+    {
+      &quot;input&quot;: 0.1999988555908203,
+      &quot;value&quot;: 419999.3133544922,
+      &quot;residual&quot;: -0.6866455078125
+    },
+    {
+      &quot;input&quot;: 0.19999980926513672,
+      &quot;value&quot;: 419999.88555908203,
+      &quot;residual&quot;: -0.11444091796875
+    },
+    {
+      &quot;input&quot;: 0.20000028610229492,
+      &quot;value&quot;: 420000.17166137695,
+      &quot;residual&quot;: 0.171661376953125
+    },
+    {
+      &quot;input&quot;: 0.20000004768371582,
+      &quot;value&quot;: 420000.0286102295,
+      &quot;residual&quot;: 0.0286102294921875
+    },
+    {
+      &quot;input&quot;: 0.19999992847442627,
+      &quot;value&quot;: 419999.95708465576,
+      &quot;residual&quot;: -0.04291534423828125
+    },
+    {
+      &quot;input&quot;: 0.19999998807907104,
+      &quot;value&quot;: 419999.9928474426,
+      &quot;residual&quot;: -0.007152557373046875
+    }
+  ],
+  &quot;input&quot;: &quot;B3&quot;,
+  &quot;output&quot;: &quot;B8&quot;,
+  &quot;target&quot;: 420000,
+  &quot;lower&quot;: 0,
+  &quot;upper&quot;: 1,
+  &quot;tolerance&quot;: 0.01,
+  &quot;method&quot;: &quot;bracketed-bisection&quot;,
+  &quot;scope&quot;: &quot;local-bracket&quot;,
+  &quot;coverage&quot;: {
+    &quot;complete&quot;: true,
+    &quot;limitations&quot;: [
+      &quot;Only points evaluated inside the supplied bracket were tested; behavior outside that bracket is unknown.&quot;,
+      &quot;Supported models are single-sheet and limited to local arithmetic plus SUM, MIN, MAX, AVERAGE, ABS, ROUND and IF.&quot;,
+      &quot;A local bracket can contain multiple solutions or cross a discontinuity; convergence does not prove uniqueness or continuity.&quot;,
+      &quot;The solution describes this saved model and tested assumptions only; it is not a forecast and does not establish causation.&quot;
+    ]
+  },
+  &quot;action&quot;: &quot;goalSeek&quot;,
+  &quot;workbook&quot;: &quot;consultant-example.xlsx&quot;,
+  &quot;elapsedMs&quot;: 883.24,
+  &quot;evidence&quot;: {
+    &quot;generatedAt&quot;: &quot;2026-09-19T21:11:41.293Z&quot;,
+    &quot;source&quot;: &quot;saved-workbook&quot;,
+    &quot;unsavedCanvasChangesIncluded&quot;: false,
+    &quot;request&quot;: {
+      &quot;action&quot;: &quot;goalSeek&quot;,
+      &quot;name&quot;: &quot;consultant-example.xlsx&quot;,
+      &quot;sheet&quot;: &quot;Model&quot;,
+      &quot;input&quot;: &quot;B3&quot;,
+      &quot;output&quot;: &quot;B8&quot;,
+      &quot;target&quot;: 420000,
+      &quot;lower&quot;: 0,
+      &quot;upper&quot;: 1,
+      &quot;tolerance&quot;: 0.01
+    }
+  }
+}</pre></details></section><section><h2>4. variance</h2><p class="status">Status: calculated</p><h3>Outcome</h3><p>Baseline 1,000,000; comparison 1,000,000; change 0.</p><table><thead><tr><th>Baseline source</th><th>Comparison source</th><th>Baseline</th><th>Comparison</th><th>Change</th><th>% change</th></tr></thead><tbody><tr><td>B11</td><td>D11</td><td>300,000</td><td>400,000</td><td>100,000</td><td>33.3333%</td></tr><tr><td>B12</td><td>D12</td><td>500,000</td><td>250,000</td><td>-250,000</td><td>-50%</td></tr><tr><td>B13</td><td>D13</td><td>200,000</td><td>350,000</td><td>150,000</td><td>75%</td></tr></tbody></table><h3>Exact sources and assumptions</h3><table><thead><tr><th>Source or assumption</th><th>Value</th></tr></thead><tbody><tr><td>sheet</td><td>Model</td></tr><tr><td>baseline</td><td>B11:B13</td></tr><tr><td>comparison</td><td>D11:D13</td></tr></tbody></table><h3>Coverage and limitations</h3><p><strong>Requested scope reported complete.</strong></p><ul><li>Cells are paired by position, not matched by business labels. Confirm that the selected ranges are comparable.</li><li>Percentage change uses the absolute baseline; a zero baseline has no percentage.</li><li>Saved values only. Formula caches are not recalculated. A bridge explains arithmetic differences, not business causation.</li></ul><details><summary>Full result and provenance</summary><pre>{
+  &quot;status&quot;: &quot;calculated&quot;,
+  &quot;revision&quot;: &quot;3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd&quot;,
+  &quot;sheet&quot;: &quot;Model&quot;,
+  &quot;baselineRange&quot;: &quot;B11:B13&quot;,
+  &quot;comparisonRange&quot;: &quot;D11:D13&quot;,
+  &quot;baselineTotal&quot;: 1000000,
+  &quot;comparisonTotal&quot;: 1000000,
+  &quot;difference&quot;: 0,
+  &quot;residual&quot;: 0,
+  &quot;rows&quot;: [
+    {
+      &quot;baselineCell&quot;: &quot;B11&quot;,
+      &quot;comparisonCell&quot;: &quot;D11&quot;,
+      &quot;baseline&quot;: 300000,
+      &quot;comparison&quot;: 400000,
+      &quot;difference&quot;: 100000,
+      &quot;percentChange&quot;: 33.33333333333333
+    },
+    {
+      &quot;baselineCell&quot;: &quot;B12&quot;,
+      &quot;comparisonCell&quot;: &quot;D12&quot;,
+      &quot;baseline&quot;: 500000,
+      &quot;comparison&quot;: 250000,
+      &quot;difference&quot;: -250000,
+      &quot;percentChange&quot;: -50
+    },
+    {
+      &quot;baselineCell&quot;: &quot;B13&quot;,
+      &quot;comparisonCell&quot;: &quot;D13&quot;,
+      &quot;baseline&quot;: 200000,
+      &quot;comparison&quot;: 350000,
+      &quot;difference&quot;: 150000,
+      &quot;percentChange&quot;: 75
+    }
+  ],
+  &quot;alignment&quot;: &quot;positional&quot;,
+  &quot;basis&quot;: &quot;saved-cached-values&quot;,
+  &quot;sourceUnchanged&quot;: true,
+  &quot;coverage&quot;: {
+    &quot;complete&quot;: true,
+    &quot;limitations&quot;: [
+      &quot;Cells are paired by position, not matched by business labels. Confirm that the selected ranges are comparable.&quot;,
+      &quot;Percentage change uses the absolute baseline; a zero baseline has no percentage.&quot;,
+      &quot;Saved values only. Formula caches are not recalculated. A bridge explains arithmetic differences, not business causation.&quot;
+    ]
+  },
+  &quot;action&quot;: &quot;variance&quot;,
+  &quot;workbook&quot;: &quot;consultant-example.xlsx&quot;,
+  &quot;elapsedMs&quot;: 3,
+  &quot;evidence&quot;: {
+    &quot;generatedAt&quot;: &quot;2026-09-19T21:11:41.413Z&quot;,
+    &quot;source&quot;: &quot;saved-workbook&quot;,
+    &quot;unsavedCanvasChangesIncluded&quot;: false,
+    &quot;request&quot;: {
+      &quot;action&quot;: &quot;variance&quot;,
+      &quot;name&quot;: &quot;consultant-example.xlsx&quot;,
+      &quot;sheet&quot;: &quot;Model&quot;,
+      &quot;baseline&quot;: &quot;B11:B13&quot;,
+      &quot;comparison&quot;: &quot;D11:D13&quot;
+    }
+  }
+}</pre></details></section><section><h2>5. checks</h2><p class="status">Status: passed</p><h3>Outcome</h3><p><strong>2 passed; 0 failed.</strong></p><table><thead><tr><th>Check</th><th>Source</th><th>Actual</th><th>Comparison and target</th><th>Effective tolerance</th><th>Difference</th><th>Outcome</th></tr></thead><tbody><tr><td>Amounts agree</td><td>B11:B13</td><td>1,000,000</td><td>Equals 1,000,000</td><td>0.01</td><td>0</td><td>Passed</td></tr><tr><td>EBITDA floor</td><td>B8</td><td>360,000</td><td>At least 300,000</td><td>0.01</td><td>60,000</td><td>Passed</td></tr></tbody></table><h3>Exact sources and assumptions</h3><table><thead><tr><th>Source or assumption</th><th>Value</th></tr></thead><tbody><tr><td>sheet</td><td>Model</td></tr><tr><td>checks</td><td>[{&quot;label&quot;:&quot;Amounts agree&quot;,&quot;range&quot;:&quot;B11:B13&quot;,&quot;operator&quot;:&quot;equals&quot;,&quot;compareRange&quot;:&quot;D11:D13&quot;,&quot;tolerance&quot;:0.01},{&quot;label&quot;:&quot;EBITDA floor&quot;,&quot;range&quot;:&quot;B8&quot;,&quot;operator&quot;:&quot;at-least&quot;,&quot;target&quot;:300000,&quot;tolerance&quot;:0.01}]</td></tr></tbody></table><h3>Coverage and limitations</h3><p><strong>Requested scope reported complete.</strong></p><ul><li>Only the explicitly configured checks were evaluated. Passing is not a correctness certificate or audit opinion.</li><li>Each range is summed; blanks, text, errors, and missing formula caches prevent the entire pack from running.</li><li>Saved values only. Formula caches are not recalculated.</li></ul><details><summary>Full result and provenance</summary><pre>{
+  &quot;status&quot;: &quot;passed&quot;,
+  &quot;revision&quot;: &quot;3333479132223aa2c5d6beafe2a5ca1f23bac0c351e50c22f8deed171ee4e0bd&quot;,
+  &quot;sheet&quot;: &quot;Model&quot;,
+  &quot;checks&quot;: [
+    {
+      &quot;label&quot;: &quot;Amounts agree&quot;,
+      &quot;range&quot;: &quot;B11:B13&quot;,
+      &quot;operator&quot;: &quot;equals&quot;,
+      &quot;compareRange&quot;: &quot;D11:D13&quot;,
+      &quot;tolerance&quot;: 0.01,
+      &quot;target&quot;: 1000000,
+      &quot;actual&quot;: 1000000,
+      &quot;difference&quot;: 0,
+      &quot;passed&quot;: true
+    },
+    {
+      &quot;label&quot;: &quot;EBITDA floor&quot;,
+      &quot;range&quot;: &quot;B8&quot;,
+      &quot;operator&quot;: &quot;at-least&quot;,
+      &quot;target&quot;: 300000,
+      &quot;tolerance&quot;: 0.01,
+      &quot;actual&quot;: 360000,
+      &quot;difference&quot;: 60000,
+      &quot;passed&quot;: true
+    }
+  ],
+  &quot;passed&quot;: 2,
+  &quot;failed&quot;: 0,
+  &quot;basis&quot;: &quot;saved-cached-values&quot;,
+  &quot;sourceUnchanged&quot;: true,
+  &quot;coverage&quot;: {
+    &quot;complete&quot;: true,
+    &quot;limitations&quot;: [
+      &quot;Only the explicitly configured checks were evaluated. Passing is not a correctness certificate or audit opinion.&quot;,
+      &quot;Each range is summed; blanks, text, errors, and missing formula caches prevent the entire pack from running.&quot;,
+      &quot;Saved values only. Formula caches are not recalculated.&quot;
+    ]
+  },
+  &quot;action&quot;: &quot;checks&quot;,
+  &quot;workbook&quot;: &quot;consultant-example.xlsx&quot;,
+  &quot;elapsedMs&quot;: 4.54,
+  &quot;evidence&quot;: {
+    &quot;generatedAt&quot;: &quot;2026-09-19T21:11:41.810Z&quot;,
+    &quot;source&quot;: &quot;saved-workbook&quot;,
+    &quot;unsavedCanvasChangesIncluded&quot;: false,
+    &quot;request&quot;: {
+      &quot;action&quot;: &quot;checks&quot;,
+      &quot;name&quot;: &quot;consultant-example.xlsx&quot;,
+      &quot;sheet&quot;: &quot;Model&quot;,
+      &quot;checks&quot;: [
+        {
+          &quot;label&quot;: &quot;Amounts agree&quot;,
+          &quot;range&quot;: &quot;B11:B13&quot;,
+          &quot;operator&quot;: &quot;equals&quot;,
+          &quot;compareRange&quot;: &quot;D11:D13&quot;,
+          &quot;tolerance&quot;: 0.01
+        },
+        {
+          &quot;label&quot;: &quot;EBITDA floor&quot;,
+          &quot;range&quot;: &quot;B8&quot;,
+          &quot;operator&quot;: &quot;at-least&quot;,
+          &quot;target&quot;: 300000,
+          &quot;tolerance&quot;: 0.01
+        }
+      ]
+    }
+  }
+}</pre></details></section></body></html>

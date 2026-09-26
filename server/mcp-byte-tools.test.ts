@@ -103,6 +103,26 @@ interface Harness {
   tools(): Promise<string[]>;
 }
 
+test('financial analysis executes over MCP with saved-revision evidence', async (t) => {
+  const h = await harness(t);
+  await writeFile(join(h.root, 'model.xlsx'), fixtureBytes);
+  const result = await h.payload<any>('analyze_financial_workbook', {
+    request: { action: 'context', name: 'model.xlsx', sheet: 'Model', range: 'A1:A2' },
+  });
+  assert.equal(result.status, 'ok');
+  assert.equal(result.action, 'context');
+  assert.equal(result.workbook, 'model.xlsx');
+  assert.equal(result.evidence.source, 'saved-workbook');
+  assert.equal(result.evidence.unsavedCanvasChangesIncluded, false);
+  assert.ok(result.revision);
+  assert.equal(result.cells.length, 2);
+  assert.equal(result.cells.find((cell: any) => cell.address === 'A1').value, 5);
+  const refused = await h.call('analyze_financial_workbook', {
+    request: { action: 'context', name: '../outside.xlsx', sheet: 'Model', range: 'A1' },
+  });
+  assert.equal(refused.isError, true);
+});
+
 async function harness(t: { after(fn: () => Promise<void> | void): void }): Promise<Harness> {
   const root = await mkdtemp(join(tmpdir(), 'mog-byte-tools-'));
   const service = createWorkbookService({ root });

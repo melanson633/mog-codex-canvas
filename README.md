@@ -7,8 +7,13 @@ in two forms that share one workbook service and one security policy:
    MCP Apps UI resource that renders the canvas inside a host-controlled
    sandboxed iframe. Installation and status: see
    [`docs/CLAUDE-CODE-PLUGIN.md`](docs/CLAUDE-CODE-PLUGIN.md).
-2. **A standalone dev companion app** — a Vite dev server you park in a
-   narrow browser window beside Claude Code, or open in its Browser pane.
+2. **A standalone financial workbench** — a local production app with a live
+   canvas, saved-cell inspection, dependency tracing, formula review, tie-outs,
+   disposable scenarios, sensitivity, goal seek, driver analysis, variance bridges,
+   reusable check packs and a printable evidence notebook. Open local XLSX copies,
+   keep four workbook tabs, and run scoped agent notes on two workbooks at once.
+   Agent requests use the signed-in Claude account and preview edits before Apply. See the
+   [workbench guide](docs/CONSULTANT-WORKBENCH.md). A Vite dev server is also available.
 
 The canvas is the real thing in both: `@mog-sdk/spreadsheet-app`, the same
 engine and UI Mog ships everywhere else. No mock grid.
@@ -52,7 +57,7 @@ loads are cached.
 | --- | --- |
 | `npm run dev` | Vite dev server: the canvas, the file bridge, the Mog runtime assets |
 | `npm run headless` | Headless SDK lane — edit, save, re-open, validate, screenshot |
-| `npm test` | 65 unit tests, no server: path containment, crash-safe writes, bridge endpoints, agent lane |
+| `npm test` | Sequential test suite: containment, crash-safe writes, bridge/MCP contracts, privacy and financial analysis |
 | `npm run verify` | 25 checks, no browser: engine round-trip + asset routing + file bridge + adapter resolution |
 | `npm run smoke` | 9 checks in a headless browser: does the canvas mount, render, and save to disk |
 | `npm run build:mcp-app` | Production build of the MCP Apps canvas component (deterministic; no dev server at runtime) |
@@ -61,6 +66,8 @@ loads are cached.
 | `npm run check:app` | 11 in-iframe checks: real canvas under a sandboxed iframe + MCP Apps host, edit/save/screenshot |
 | `npm run check:plugin` | 6 plugin package checks: manifests match what Claude Code and Codex ingest, launcher boots the server |
 | `npm run typecheck` | `tsc --noEmit` |
+| `npm run build` / `npm start` | Build and serve the loopback financial workbench |
+| `npm run check:consultant -- <origin> <evidence-dir> <release>` | Synthetic desktop/mobile financial workflows, source preservation and release identity |
 
 `npm run smoke` needs `npm run dev` already running in another shell. It drives
 Chrome if installed — per-machine or per-user (`%LOCALAPPDATA%`) — and falls
@@ -72,12 +79,19 @@ built for — and that size is load-bearing: the edit check clicks the grid at a
 fixed pixel offset, and `workbooks/browser-smoke.png` is a capture of that
 viewport only, not of the whole sheet. Wider layouts are not covered.
 
-The dev app itself has no `build` script — its WASM routing
-(`server/mog-assets.ts`) and file bridge (`server/file-bridge.ts`) are
-dev-server middleware. The production build belongs to the MCP lane:
-`npm run build:mcp-app` bundles the canvas component, and the MCP server's
-own loopback asset host serves it plus the engine's WASM and fonts — no
-Vite process at runtime.
+For the standalone production workbench, run `npm run build` then `npm start`
+and open **http://127.0.0.1:5276**. Select **Open financial example** to create
+the synthetic consulting model. Existing examples are checked and never
+overwritten. `PORT`, `MOG_WORKBOOK_DIR`, and `MOG_DIST_DIR` configure the local
+host. This is a loopback application, not an internet-hosted service.
+
+`npm run check:consultant -- http://127.0.0.1:5276` exercises the example through
+the API and real browser, including exact answers, mobile layout, and source
+preservation. Use an isolated workbook root for release testing.
+
+The MCP lane keeps its separate `npm run build:mcp-app` build and loopback asset
+host. Agents can call `analyze_financial_workbook` with the same ten analysis
+actions as the workbench. See [workbench scope and limits](docs/CONSULTANT-WORKBENCH.md).
 
 ## What works
 

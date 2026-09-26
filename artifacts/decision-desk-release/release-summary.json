@@ -1,0 +1,14 @@
+{
+  "supplementalReview": "Blank-file exclusive creation and targeted canvas navigation reviewed; no unresolved findings",
+  "release": "20260919-decision-desk-r5",
+  "scope": "Local production; synthetic workflows; no paid provider calls",
+  "productionChecks": 80,
+  "mcpApp": "11 passed",
+  "production": "http://127.0.0.1:5276",
+  "staging": "http://127.0.0.1:5279",
+  "stagingChecks": 80,
+  "automatedTests": 292,
+  "productionWorkbookSha256": "3333479132223AA2C5D6BEAFE2A5CA1F23BAC0C351E50C22F8DEED171EE4E0BD",
+  "runtimeSourceManifest": "C:\\Users\\MarkMelanson\\AppData\\Local\\MogFinancialWorkbench\\releases\\20260919-decision-desk-r5\\source-manifest.json",
+  "mcpProtocol": "13 passed"
+}

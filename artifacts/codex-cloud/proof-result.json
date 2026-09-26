@@ -1,0 +1,42 @@
+{
+  "status": "passed",
+  "runtime": {
+    "node": "22.22.2",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "outputs": {
+    "workbook": "artifacts/codex-cloud/basic-spreadsheet.xlsx",
+    "screenshot": "artifacts/codex-cloud/basic-spreadsheet.png"
+  },
+  "assertions": {
+    "sheetNames": [
+      "Sheet1"
+    ],
+    "formulas": {
+      "D2": 12500,
+      "D3": 3500,
+      "B4": 40000,
+      "C4": 49000,
+      "D4": 9000
+    },
+    "reopenedFormula": "=C4-B4",
+    "reopenedValue": 9000,
+    "xlsxSignature": "PK",
+    "pngSignature": "89504e470d0a1a0a"
+  },
+  "calculation": {
+    "hasCircularRefs": false,
+    "converged": false,
+    "iterations": 0,
+    "maxDelta": 0,
+    "circularCellCount": 0,
+    "recomputedCount": 5
+  },
+  "save": {
+    "transactionId": "b3ec3b4a-632a-4b0f-aa59-6438325b57bc",
+    "fidelity": "passed",
+    "coordination": "no-live-canvas"
+  },
+  "summary": "Sheet: Sheet1\nUsed Range: A1:D4\nDimensions: 4 rows x 4 columns\nHeaders: Category, Budget, Actual, Variance\nContent: 16 values (9 numbers, 7 strings, 5 formulas)\n\n--- Sample Data ---\nA1:Category | B1:Budget | C1:Actual | D1:Variance\nA2:Revenue | B2:100000 | C2:112500 | D2:12500(=C2-B2)\nA3:Costs | B3:60000 | C3:63500 | D3:3500(=C3-B3)\nA4:Net contribution | B4:40000(=B2-B3) | C4:49000(=C2-C3) | D4:9000(=C4-B4)"
+}

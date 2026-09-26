@@ -16,10 +16,13 @@ import {
   type WorkbookProfileResponse,
 } from './api';
 import { resolveCanvasAdapter, type AdapterProbe, type CanvasSession } from './adapters';
+import { SavedWorkbookNavigator } from './SavedWorkbookNavigator';
+import { needsSavedView } from './workbook-capacity';
 
 /** How often coalesced presence reports leave the app, and commands are polled. */
 const CONTEXT_THROTTLE_MS = 300;
 const COMMAND_POLL_MS = 1500;
+type RevealCommand = { id: string; range: string; sheet: string | null };
 
 export function App() {
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -29,14 +32,23 @@ export function App() {
   const [config, setConfig] = useState<BridgeConfig | null>(null);
   const [file, setFile] = useState<string | null>(null);
   const [status, setStatus] = useState('starting');
+  // The canvas can be mounted while its renderer is still compiling and
+  // hydrating. Keep that work visible in the canvas itself until the embed
+  // reports it can answer a real query.
+  const [canvasReady, setCanvasReady] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Navigation has its own failure channel: a later successful reveal clears
+  // this operational error without erasing a save or workbook error.
+  const [navigationError, setNavigationError] = useState<string | null>(null);
+  const [lastReveal, setLastReveal] = useState<{ id: string; range: string; sheet: string | null; status: 'applied' | 'failed' } | null>(null);
   const [report, setReport] = useState<ValidationReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [fidelity, setFidelity] = useState<FidelityReport | null>(null);
   // Byte-first shape of the saved file — answers in milliseconds while the
   // canvas renderer may take minutes to hydrate the same bytes.
   const [profile, setProfile] = useState<WorkbookProfileResponse | null>(null);
+  const [savedView, setSavedView] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   // Non-null while presence coordination is unhealthy: agents cannot see where
   // the human is, so the occupied-cell interlock is running blind.
@@ -46,6 +58,52 @@ export function App() {
   // can never leave A's presence behind.
   const contextOwnerRef = useRef<{ file: string; epoch: number } | null>(null);
 
+  const executeReveal = useCallback(async (command: RevealCommand) => {
+    const live = sessionRef.current;
+    if (!live?.reveal) {
+      setNavigationError(`Could not show ${command.sheet ? `${command.sheet}!` : ''}${command.range}: the canvas is not ready for navigation.`);
+      setLastReveal({ ...command, status: 'failed' });
+      return false;
+    }
+    try {
+      await live.reveal(command.range, command.sheet);
+      // The workbook could have switched while the engine was navigating.
+      // Its completion is no longer evidence about the current canvas.
+      if (sessionRef.current !== live) return false;
+      setNavigationError(null);
+      setLastReveal({ ...command, status: 'applied' });
+      return true;
+    } catch (cause) {
+      if (sessionRef.current !== live) return false;
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      setNavigationError(`Could not show ${command.sheet ? `${command.sheet}!` : ''}${command.range}: ${detail}`);
+      setLastReveal({ ...command, status: 'failed' });
+      return false;
+    }
+  }, []);
+
+  // Evidence links in the financial workbench navigate their own embedded
+  // canvas directly. Server-queued reveals remain shared, one-consumer agent
+  // commands; without this target, another canvas may drain a human link first.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent<unknown>) => {
+      if (savedView) return; // The saved-page navigator acknowledges its own reads.
+      if (event.origin !== window.location.origin || window.parent === window || event.source !== window.parent) return;
+      const message = event.data;
+      if (!message || typeof message !== 'object' || !('type' in message) || message.type !== 'mog:reveal'
+        || !('id' in message) || typeof message.id !== 'string' || !('range' in message) || typeof message.range !== 'string'
+        || message.range.length === 0 || message.range.length > 1_000 || !('sheet' in message)
+        || (message.sheet !== null && typeof message.sheet !== 'string') || !('workbook' in message)
+        || message.workbook !== file) return;
+      const command: RevealCommand = { id: message.id, range: message.range, sheet: message.sheet };
+      void executeReveal(command).then((applied) => {
+        window.parent.postMessage({ type: 'mog:reveal-result', id: command.id, status: applied ? 'applied' : 'failed' }, event.origin);
+      });
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [executeReveal, file, savedView]);
+
   useEffect(() => {
     getConfig()
       .then((next) => {
@@ -53,6 +111,11 @@ export function App() {
         // ?wb=<name> pins the initial workbook (used by compare.html panes).
         const wanted = new URLSearchParams(window.location.search).get('wb');
         const pinned = wanted && next.files.some((f) => f.name === wanted) ? wanted : null;
+        if (wanted && !pinned) {
+          setError('The requested workbook is not listed in this workspace. Choose a listed workbook.');
+          setStatus('workbook unavailable');
+          return;
+        }
         setFile((current) => current ?? pinned ?? next.files[0]?.name ?? null);
         if (next.files.length === 0) setStatus('no workbooks found');
       })
@@ -68,19 +131,26 @@ export function App() {
     if (!container) return;
 
     setError(null);
+    setNavigationError(null);
+    setLastReveal(null);
     setReport(null);
     setDirty(false);
     setFidelity(null);
     setCoordWarning(null);
     setProfile(null);
+    setSavedView(false);
+    setProbe(null);
     setProfileError(null);
+    setCanvasReady(false);
     setStatus('loading workbook');
+    performance.mark('mog-canvas:open-start');
 
     // Shape-first: profile the saved bytes immediately, in parallel with the
     // canvas open below. The panel renders in milliseconds; the renderer may
     // take minutes on the same bytes. An unreadable file arrives as a typed
     // result and renders as such — unknown is never shown as empty.
-    void fetchProfile(file).then(
+    const profilePromise = fetchProfile(file);
+    void profilePromise.then(
       (shape) => {
         if (!stale) setProfile(shape);
       },
@@ -144,12 +214,23 @@ export function App() {
       }
 
       try {
-        const adapter = await resolveCanvasAdapter();
+        // Preflight before importing or hydrating the full spreadsheet engine.
+        // A compressed file's byte size alone does not describe its runtime cost.
+        const shape = await profilePromise;
         if (stale) return;
+        if (shape.profile.status !== 'profiled') throw new Error(`Cannot safely open this workbook: ${shape.profile.reason}`);
+        if (needsSavedView(shape.profile)) {
+          setSavedView(true); setStatus('saved workbook navigator'); setCanvasReady(true);
+          return;
+        }
+        // The browser engine and the saved workbook have no dependency on one
+        // another. Starting both lets disk I/O disappear behind module load.
+        const adapterPromise = resolveCanvasAdapter();
+        const workbookPromise = readWorkbook(file);
+        const [adapter, { bytes, revision }] = await Promise.all([adapterPromise, workbookPromise]);
+        if (stale) return;
+        performance.mark('mog-canvas:engine-and-workbook-ready');
         setProbe(adapter.probe);
-
-        const { bytes, revision } = await readWorkbook(file);
-        if (stale) return;
 
         // The revision this canvas last saw on disk. Saves send it as the
         // expected base; a concurrent writer makes the save fail with a 409
@@ -176,7 +257,11 @@ export function App() {
               }
             },
             onDirtyChange: setDirty,
-            onStatus: setStatus,
+            onStatus: (nextStatus) => {
+              setStatus(nextStatus);
+              performance.mark(`mog-canvas:${nextStatus}`);
+              if (nextStatus === 'renderer ready') setCanvasReady(true);
+            },
             onError: (cause) =>
               setError(cause instanceof Error ? cause.message : JSON.stringify(cause)),
             onContext: (snapshot) => {
@@ -196,13 +281,14 @@ export function App() {
         pollTimer = setInterval(() => {
           void fetchCanvasCommands(file)
             .then(async (commands) => {
-              const live = sessionRef.current;
-              if (stale || !live?.reveal || commands.length === 0) return;
+              if (stale || commands.length === 0) return;
               // Only the newest reveal matters — intermediate ones are history.
               const last = commands[commands.length - 1];
-              await live.reveal(last.range, last.sheet);
+              if (!stale) await executeReveal(last);
             })
-            .catch(() => undefined);
+            .catch((cause) => {
+              if (!stale) setNavigationError(`Could not receive canvas navigation: ${cause instanceof Error ? cause.message : String(cause)}`);
+            });
         }, COMMAND_POLL_MS);
       } catch (cause) {
         if (!stale) {
@@ -224,7 +310,7 @@ export function App() {
         void clearContext(file, lastEpoch).catch(() => undefined);
       }
     };
-  }, [file]);
+  }, [file, executeReveal]);
 
   const run = useCallback(async (label: string, action: () => Promise<void>) => {
     setBusy(true);
@@ -241,7 +327,8 @@ export function App() {
 
   const onSave = () =>
     run('save', async () => {
-      await sessionRef.current?.save();
+      if (!sessionRef.current) throw new Error('No editable canvas is open.');
+      await sessionRef.current.save();
       setStatus('saved to disk');
     });
 
@@ -266,9 +353,10 @@ export function App() {
       setStatus(`screenshot written: ${target}`);
     });
 
-  const canEdit = probe?.capabilities.liveCanvas ?? false;
+  const canEdit = !savedView && canvasReady && !!sessionRef.current && (probe?.capabilities.liveCanvas ?? false);
   // ?compact=1 slims the chrome for multi-pane embedding (compare.html).
   const compact = new URLSearchParams(window.location.search).get('compact') === '1';
+  const embedded = new URLSearchParams(window.location.search).get('embedded') === '1';
 
   return (
     <div className={compact ? 'app compact' : 'app'}>
@@ -278,7 +366,7 @@ export function App() {
             className="picker"
             value={file ?? ''}
             onChange={(event) => setFile(event.target.value || null)}
-            disabled={!config || config.files.length === 0}
+            disabled={embedded || !config || config.files.length === 0}
           >
             {config?.files.length === 0 && <option value="">no .xlsx in workbook root</option>}
             {config?.files.map((entry) => (
@@ -294,7 +382,7 @@ export function App() {
           <button onClick={onSave} disabled={busy || !canEdit}>
             Save
           </button>
-          <button onClick={onVerify} disabled={busy || !file}>
+          <button onClick={onVerify} disabled={busy || !file || savedView}>
             Verify
           </button>
           <button onClick={onScreenshot} disabled={busy || !canEdit}>
@@ -307,12 +395,25 @@ export function App() {
             {probe ? probe.label : 'resolving adapter…'}
           </span>
           <span className="status">{status}</span>
+          {lastReveal && (
+            <span
+              className="status"
+              data-testid="reveal-status"
+              data-reveal-id={lastReveal.id}
+              data-reveal-range={lastReveal.range}
+              data-reveal-sheet={lastReveal.sheet ?? ''}
+              data-reveal-status={lastReveal.status}
+            >
+              {lastReveal.status === 'applied' ? 'revealed' : 'reveal failed'} {lastReveal.sheet ? `${lastReveal.sheet}!` : ''}{lastReveal.range}
+            </span>
+          )}
         </div>
       </header>
 
       {error && <pre className="error">{error}</pre>}
+      {navigationError && <pre className="error" data-testid="reveal-error">{navigationError}</pre>}
 
-      {(profile || profileError) && (
+      {!savedView && (profile || profileError) && (
         <section className="report shape">
           <div className="report-head">
             <strong>Saved-file shape</strong>
@@ -372,7 +473,16 @@ export function App() {
         </section>
       )}
 
-      <div className="canvas" ref={canvasRef} />
+      <div className="canvas-stage">
+        <div className="canvas" hidden={savedView} ref={canvasRef} data-startup-phase={status} data-canvas-ready={canvasReady} />
+        {savedView && file && profile?.profile.status === 'profiled' && <SavedWorkbookNavigator key={file} name={file} profile={profile.profile} />}
+        {!canvasReady && file && !error && probe?.available !== false && (
+          <div className="canvas-loading" role="status" aria-live="polite">
+            <strong>Opening {file}</strong>
+            <span>{status}</span>
+          </div>
+        )}
+      </div>
 
       {report && (
         <section className="report">
@@ -390,6 +500,7 @@ export function App() {
       )}
 
       <footer className="foot">
+        <a href={`/analyst.html${file ? `?wb=${encodeURIComponent(file)}` : ''}`} target="_blank" rel="noreferrer">Financial workbench ↗</a>
         <span>{config ? config.root : '…'}</span>
         {probe && !probe.available && <span className="warn-text">{probe.detail}</span>}
         {/* warn-text: while presence reporting is unhealthy, agents are blind

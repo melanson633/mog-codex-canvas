@@ -142,7 +142,7 @@ function colNumber(letters: string): number {
   return n;
 }
 
-const RANGE_RE = /^(?:(?:'([^']+)'|([A-Za-z0-9_ .-]+))!)?\$?([A-Za-z]{1,3})\$?(\d+)(?::\$?([A-Za-z]{1,3})\$?(\d+))?$/;
+const RANGE_RE = /^(?:(?:'((?:[^']|'')+)'|([A-Za-z0-9_ .-]+))!)?\$?([A-Za-z]{1,3})\$?(\d+)(?::\$?([A-Za-z]{1,3})\$?(\d+))?$/;
 
 /** Parses "B4", "A1:C9", "Sheet1!A1:C9", "'My Sheet'!B2". Returns null when unsupported. */
 export function parseRange(ref: string): ParsedRange | null {
@@ -155,7 +155,7 @@ export function parseRange(ref: string): ParsedRange | null {
   const endRow = endRowS ? Number(endRowS) : startRow;
   if (startRow < 1 || endRow < 1) return null;
   return {
-    sheet: quoted ?? bare ?? null,
+    sheet: quoted?.replace(/''/g, "'") ?? bare ?? null,
     startRow: Math.min(startRow, endRow),
     startCol: Math.min(startCol, endCol),
     endRow: Math.max(startRow, endRow),

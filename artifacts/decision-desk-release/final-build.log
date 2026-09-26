@@ -1,0 +1,29 @@
+
+> mog-codex-live-xlsx@0.1.0 build
+> vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 1620 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/analyst.html                                    0.46 kB │ gzip:      0.31 kB
+dist/index.html                                      0.52 kB │ gzip:      0.33 kB
+dist/assets/Caladea-Regular-B53Ks_lt.ttf            81.60 kB
+dist/assets/Caladea-BoldItalic-DkhmklnE.ttf         83.36 kB
+dist/assets/Caladea-Italic-4OO-bliM.ttf             83.78 kB
+dist/assets/Caladea-Bold-DnbgPcDr.ttf               84.49 kB
+dist/assets/Carlito-Italic-CGXKsjri.ttf            615.24 kB
+dist/assets/Carlito-Regular-BkJcQkis.ttf           628.03 kB
+dist/assets/Carlito-Bold-DYBddF9k.ttf              682.47 kB
+dist/assets/Carlito-BoldItalic-jfVeVcNl.ttf        808.51 kB
+dist/assets/compute_core_wasm_bg-CEDeWido.wasm  41,303.29 kB │ gzip: 15,096.81 kB
+dist/assets/canvas-D1o57_zO.css                      2.65 kB │ gzip:      0.96 kB
+dist/assets/analyst-cjQD1JQM.css                    10.70 kB │ gzip:      3.06 kB
+dist/assets/styles-9pscL7co.css                    100.09 kB │ gzip:     18.27 kB
+dist/assets/canvas-CNK2Qofc.js                      17.96 kB │ gzip:      6.59 kB
+dist/assets/analyst-BXyNGrjD.js                     39.56 kB │ gzip:     12.73 kB
+dist/assets/client-ls6Y6EcA.js                     194.97 kB │ gzip:     61.00 kB
+dist/assets/compute_core_wasm-9edCGCgk.js          269.79 kB │ gzip:     21.78 kB
+dist/assets/index-BZH9w0on.js                    8,892.59 kB │ gzip:  2,207.32 kB
+✓ built in 15.78s

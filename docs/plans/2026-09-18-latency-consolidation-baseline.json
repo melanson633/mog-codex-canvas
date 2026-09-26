@@ -1,0 +1,247 @@
+{
+  "measuredAt": "2026-09-19T02:47:33.182Z",
+  "node": "v24.16.0",
+  "platform": "win32",
+  "method": "Synthetic only. Sequential after test suites. Each size measured in a fresh child process; warm = same process, not an application cache. OS cache not flushed. Five repeat queries. Screenshot shows first 12 rows only. No browser readiness measurement.",
+  "measured": [
+    {
+      "fixture": "small.xlsx",
+      "revision": "7f539f087aa16d9ff63259c2144494d0d468865c1898e3701f71c255e1e9b04b",
+      "fileBytes": 8606,
+      "sheets": 1,
+      "cells": 1010,
+      "formulas": 100,
+      "range": "A2:J11",
+      "returnedCells": 100,
+      "host": {
+        "firstOpenMs": 3.78,
+        "warmOpen": {
+          "runsMs": [
+            0.96,
+            0.57,
+            0.5,
+            0.74,
+            0.64
+          ],
+          "medianMs": 0.64
+        },
+        "firstQueryMs": 2.91,
+        "repeatedQuery": {
+          "runsMs": [
+            2.93,
+            2.22,
+            1.6,
+            1.54,
+            2.33
+          ],
+          "medianMs": 2.22
+        },
+        "fileBytesReadPerQuery": 8606,
+        "archiveCoverage": "Every ZIP entry decoded; target worksheet scanned. Derived from current source, not I/O instrumentation."
+      },
+      "engine": {
+        "sdkImportMs": 247.46,
+        "firstOpenMs": 67.55,
+        "warmReopenMs": 26.95,
+        "firstQueryMs": 0.78,
+        "repeatedQuery": {
+          "runsMs": [
+            0.35,
+            0.19,
+            0.12,
+            0.24,
+            0.12
+          ],
+          "medianMs": 0.19
+        },
+        "inputBytes": 8606,
+        "hydratedCells": null,
+        "coverage": "Whole workbook supplied. Internal hydration volume is not exposed or measured."
+      }
+    },
+    {
+      "fixture": "medium.xlsx",
+      "revision": "e5b760de80cac2e180dceadb1a1142746551554693182666d78959b2f9708fa3",
+      "fileBytes": 161818,
+      "sheets": 1,
+      "cells": 30010,
+      "formulas": 3000,
+      "range": "A2:J11",
+      "returnedCells": 100,
+      "host": {
+        "firstOpenMs": 3.83,
+        "warmOpen": {
+          "runsMs": [
+            1.52,
+            1.16,
+            1.72,
+            1.31,
+            0.76
+          ],
+          "medianMs": 1.31
+        },
+        "firstQueryMs": 33.02,
+        "repeatedQuery": {
+          "runsMs": [
+            19.9,
+            14.63,
+            14.35,
+            15.1,
+            16.25
+          ],
+          "medianMs": 15.1
+        },
+        "fileBytesReadPerQuery": 161818,
+        "archiveCoverage": "Every ZIP entry decoded; target worksheet scanned. Derived from current source, not I/O instrumentation."
+      },
+      "engine": {
+        "sdkImportMs": 259.87,
+        "firstOpenMs": 316.22,
+        "warmReopenMs": 416.13,
+        "firstQueryMs": 1.69,
+        "repeatedQuery": {
+          "runsMs": [
+            0.66,
+            0.32,
+            0.28,
+            0.36,
+            0.23
+          ],
+          "medianMs": 0.32
+        },
+        "inputBytes": 161818,
+        "hydratedCells": null,
+        "coverage": "Whole workbook supplied. Internal hydration volume is not exposed or measured."
+      }
+    },
+    {
+      "fixture": "large.xlsx",
+      "revision": "609440ab59a114e77037c759016fa4a48f1f1ea31c3bd462cb6ec37fc98dbc07",
+      "fileBytes": 632465,
+      "sheets": 1,
+      "cells": 120010,
+      "formulas": 12000,
+      "range": "A2:J11",
+      "returnedCells": 100,
+      "host": {
+        "firstOpenMs": 4.35,
+        "warmOpen": {
+          "runsMs": [
+            2.24,
+            1.57,
+            1.3,
+            1.76,
+            1.59
+          ],
+          "medianMs": 1.59
+        },
+        "firstQueryMs": 64.62,
+        "repeatedQuery": {
+          "runsMs": [
+            61.95,
+            59.63,
+            61.64,
+            62.72,
+            76.9
+          ],
+          "medianMs": 61.95
+        },
+        "fileBytesReadPerQuery": 632465,
+        "archiveCoverage": "Every ZIP entry decoded; target worksheet scanned. Derived from current source, not I/O instrumentation."
+      },
+      "engine": {
+        "sdkImportMs": 232.67,
+        "firstOpenMs": 993.49,
+        "warmReopenMs": 1188.62,
+        "firstQueryMs": 1.48,
+        "repeatedQuery": {
+          "runsMs": [
+            0.66,
+            0.3,
+            0.39,
+            0.5,
+            0.29
+          ],
+          "medianMs": 0.39
+        },
+        "inputBytes": 632465,
+        "hydratedCells": null,
+        "coverage": "Whole workbook supplied. Internal hydration volume is not exposed or measured."
+      }
+    }
+  ],
+  "staged": [
+    {
+      "fixture": "model",
+      "revision": "dde688600474e73eacaf26d09c82b61ccc97bbac846c4002b90df3f5c67c3fa9",
+      "bytes": 4703,
+      "sheets": 5,
+      "cells": 41,
+      "formulas": 30,
+      "briefing": {
+        "runsMs": [
+          9.62,
+          1.34,
+          1.01,
+          0.89,
+          0.89
+        ],
+        "medianMs": 1.01
+      }
+    },
+    {
+      "fixture": "dataset",
+      "revision": "d52c3e9914311b839db6e2e1d07c15576d58ed3326e3861a7af9134822879dc7",
+      "bytes": 1173541,
+      "sheets": 2,
+      "cells": 27050,
+      "formulas": 3041,
+      "briefing": {
+        "runsMs": [
+          129.6,
+          89.2,
+          93.46,
+          92.25,
+          82.58
+        ],
+        "medianMs": 92.25
+      }
+    },
+    {
+      "fixture": "large-dataset",
+      "revision": "dd85b2b1918dee37f26e4298c9f19131a26c2f6c4d00a2576343ea25c80938e3",
+      "bytes": 4747990,
+      "sheets": 2,
+      "cells": 108050,
+      "formulas": 12041,
+      "briefing": {
+        "runsMs": [
+          332.74,
+          278.68,
+          370.16,
+          290.58,
+          247.48
+        ],
+        "medianMs": 290.58
+      }
+    },
+    {
+      "fixture": "mixed",
+      "revision": "20e633a5ece1e85b51bef43cd921290f7af8bc64d08e355051fd31efc12a33d1",
+      "bytes": 39566,
+      "sheets": 4,
+      "cells": 924,
+      "formulas": 18,
+      "briefing": {
+        "runsMs": [
+          2.53,
+          2.09,
+          2.29,
+          2.46,
+          2.04
+        ],
+        "medianMs": 2.29
+      }
+    }
+  ]
+}

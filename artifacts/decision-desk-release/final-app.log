@@ -1,0 +1,26 @@
+
+> mog-codex-live-xlsx@0.1.0 check:app
+> node scripts/mcp-app-smoke.mjs
+
+preflight: 9 loopback TCP listeners before start
+ui bundle: stale — built from inputs c6b83733f2ef…, sources now hash 96a3fa1fa317…; building
+PASS  asset origin belongs to this run (serves this worktree dist byte-for-byte) — http://127.0.0.1:56121, sha256 123048bd6b9a…
+browser: C:/Program Files/Google/Chrome/Application/chrome.exe
+PASS  app completed the MCP Apps handshake inside the sandboxed iframe — ui/initialize from mog-canvas@0.1.0 | ui/notifications/initialized
+  csp[strict] blocked — retrying with 'wasm-unsafe-eval' + worker-src blob:
+PASS  CSP requirement measured (spec-literal policy first, grants added only on failure) — strict: blocked: violations=[script-src blocked eval; script-src blocked eval; script-src blocked eval; script-src blocked wasm-eval] errors=[] status="open failed"  ||  wasm: ready (violations=[script-src blocked eval; script-src blocked eval; script-src blocked eval])
+PASS  real Mog canvas reached ready inside the sandboxed iframe — status="renderer ready" under wasm CSP
+PASS  embed rendered a real DOM tree + grid canvas — 244 elements, 2 grid canvas(es)
+PASS  workbook data reached the formula bar (via MCP tools, not HTTP) — formula bar shows "Line item"; app tool calls: open_workbook, fetch_workbook_bytes, open_workbook, fetch_workbook_bytes, report_canvas_context, poll_canvas_commands
+PASS  cell edit made the session dirty — dirty=true
+PASS  Save button persisted through save_workbook_canvas to the fixture on disk — A6: 4242 -> 1337, backup sample.xlsx.bak present
+PASS  server-side session revision advanced past the open revision — 96a1f549a0f2… -> 62a945e1e96b…
+PASS  Screenshot button produced a PNG via save_screenshot — sample.png, 84359 bytes
+PASS  no page errors, and no CSP violations beyond caught eval probes — mode=wasm, caught eval probes: 3
+
+evidence screenshot: C:\Users\MarkMelanson\Documents\Mog-Codex-Live-XLSX\workbooks\mcp-app-smoke.png
+CSP ladder outcomes:
+  strict: blocked: violations=[script-src blocked eval; script-src blocked eval; script-src blocked eval; script-src blocked wasm-eval] errors=[] status="open failed"
+  wasm: ready (violations=[script-src blocked eval; script-src blocked eval; script-src blocked eval])
+
+11 passed, 0 failed

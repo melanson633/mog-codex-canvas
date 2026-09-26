@@ -34,6 +34,11 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
+import { createAgentTasks, createAgentContext, type AgentTaskState } from './agent-tasks.ts';
+import { createAnalystTools } from './analyst-tools.ts';
+import { ensureConsultantExample } from './consultant-example.ts';
+import { navigateWorkbook } from './workbook-navigator.ts';
+import { classifyReviewIntent, reviewSpecialistCapability } from './review-specialist.ts';
 import {
   WorkbookError,
   createWorkbookService,
@@ -95,6 +100,16 @@ export type BridgeHandler = (
  */
 export function createBridgeHandler(options: FileBridgeOptions): BridgeHandler {
   const service = createWorkbookService({ root: options.root });
+  const analyst = createAnalystTools(service);
+  let agentTasks: ReturnType<typeof createAgentTasks> | undefined;
+  function tasks() {
+    return agentTasks ??= createAgentTasks({
+      store: { load: async () => await service.loadAgentState() as AgentTaskState | null, save: state => service.saveAgentState(state) },
+      context: createAgentContext(service),
+      archive: jobs => service.archiveAgentJobs(jobs),
+      apply: (job, changes) => service.applyAgentChanges(job.note.name, job.revision, changes, `Agent task ${job.id}: ${job.note.text}`.slice(0, 2000)),
+    });
+  }
 
   return async (req, res, next) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
@@ -102,6 +117,61 @@ export function createBridgeHandler(options: FileBridgeOptions): BridgeHandler {
     const name = url.searchParams.get('path');
 
     try {
+      if (url.pathname === '/api/agent-tasks' && req.method === 'GET') {
+        return sendJson(res, 200, await tasks().list(url.searchParams.get('name') ?? undefined));
+      }
+      if (url.pathname.startsWith('/api/agent-tasks/') && req.method === 'POST') {
+        const chunks: Buffer[] = []; let size = 0;
+        for await (const chunk of req) { size += chunk.length; if (size > 20_000) return sendJson(res, 413, { message: 'Agent request exceeds 20 KB.' }); chunks.push(Buffer.from(chunk)); }
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (!body || typeof body !== 'object') throw new Error('An agent request is required.');
+        if (url.pathname === '/api/agent-tasks/notes') { await service.read(body.name); return sendJson(res, 200, await tasks().saveNote(body)); }
+        if (url.pathname === '/api/agent-tasks/archive' && typeof body.name === 'string') return sendJson(res, 200, await tasks().archiveCompleted(body.name));
+        if (url.pathname === '/api/agent-tasks/run' && typeof body.noteId === 'string') return sendJson(res, 202, await tasks().run(body.noteId));
+        if (url.pathname === '/api/agent-tasks/cancel' && typeof body.jobId === 'string') return sendJson(res, 200, await tasks().cancel(body.jobId));
+        if (url.pathname === '/api/agent-tasks/apply' && typeof body.jobId === 'string') return sendJson(res, 200, await tasks().apply(body.jobId));
+        return sendJson(res, 400, { message: 'Unknown agent action or missing task identifier.' });
+      }
+      if (url.pathname === '/api/analyst' && req.method === 'POST') {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        for await (const chunk of req) {
+          size += chunk.length;
+          if (size > 16_384) return sendJson(res, 413, { message: 'Analysis request exceeds 16 KB' });
+          chunks.push(Buffer.from(chunk));
+        }
+        return sendJson(res, 200, await analyst(JSON.parse(Buffer.concat(chunks).toString('utf8'))));
+      }
+      if (url.pathname === '/api/analyst/example' && req.method === 'POST') {
+        return sendJson(res, 200, await ensureConsultantExample(service));
+      }
+      if (url.pathname === '/api/workbooks/import' && req.method === 'POST') {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        for await (const chunk of req) {
+          size += chunk.length;
+          if (size > 50 * 1024 * 1024) return sendJson(res, 413, { message: 'Workbook import exceeds 50 MB.' });
+          chunks.push(Buffer.from(chunk));
+        }
+        try {
+          return sendJson(res, 201, await service.importWorkbook(url.searchParams.get('name') ?? '', Buffer.concat(chunks)));
+        } catch (error) {
+          if (error instanceof WorkbookError && error.code === 'validation-failed') return sendJson(res, 400, { error: error.message, code: error.code });
+          throw error;
+        }
+      }
+      if (url.pathname === '/api/workbooks' && req.method === 'POST') {
+        const chunks: Buffer[] = [];
+        let size = 0;
+        for await (const chunk of req) {
+          size += chunk.length;
+          if (size > 1_024) return sendJson(res, 413, { message: 'Workbook creation request exceeds 1 KB' });
+          chunks.push(Buffer.from(chunk));
+        }
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        if (!body || typeof body.name !== 'string') throw new WorkbookError('invalid-path', 'A workbook name is required.');
+        return sendJson(res, 201, await service.createBlank(body.name));
+      }
       if (url.pathname === '/api/config' && req.method === 'GET') {
         return sendJson(res, 200, { root: service.root, files: await service.list() });
       }
@@ -124,6 +194,20 @@ export function createBridgeHandler(options: FileBridgeOptions): BridgeHandler {
         // Byte-first shape read: milliseconds, engine-free, truth of the last
         // save. This is what the app renders while the canvas hydrates.
         return sendJson(res, 200, await service.profile(name));
+      }
+
+      if (url.pathname === '/api/workbook-page' && req.method === 'GET') {
+        if (!name) throw new WorkbookError('invalid-path', 'Missing "path" query parameter');
+        const { bytes, revision } = await service.read(name);
+        const page = navigateWorkbook(bytes, { sheet: url.searchParams.get('sheet') ?? undefined, range: url.searchParams.get('range') ?? undefined });
+        if (page.status !== 'ok') return sendJson(res, 400, { error: page.status, message: page.reason });
+        return sendJson(res, 200, { ...page, revision, limitations: [page.notice, 'Number formats are not applied; dates may appear as Excel serial numbers. Shared formula followers are identified but not expanded.'] });
+      }
+      if (url.pathname === '/api/review-specialist' && req.method === 'GET') return sendJson(res, 200, reviewSpecialistCapability());
+      if (url.pathname === '/api/review-specialist' && req.method === 'POST') {
+        const body = JSON.parse((await readBody(req)).toString('utf8'));
+        if (!body || typeof body.message !== 'string' || Object.keys(body).some(key => key !== 'message')) throw new Error('Send only a message to the review specialist.');
+        return sendJson(res, 200, await classifyReviewIntent(body.message));
       }
 
       if (url.pathname === '/api/workbook' && req.method === 'PUT') {

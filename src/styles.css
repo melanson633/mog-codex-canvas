@@ -104,12 +104,38 @@ body,
   font-variant-numeric: tabular-nums;
 }
 
+.canvas-stage { position: relative; flex: 1; min-height: 0; display: flex; }
+
 /* The Mog embed fills this box and renders its own chrome inside it. */
 .canvas {
   position: relative;
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+/* A real runtime can take time to compile and hydrate before it paints. Keep
+   its exact host status in the otherwise empty canvas; errors remain visible
+   in the app's dedicated error surface above. */
+.canvas-loading {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+  background: color-mix(in srgb, Canvas 92%, transparent);
+  pointer-events: none;
+}
+
+.canvas-loading strong {
+  color: CanvasText;
+  font-family: ui-serif, Georgia, serif;
+  font-size: 18px;
+  font-weight: 500;
 }
 
 .canvas-notice {
