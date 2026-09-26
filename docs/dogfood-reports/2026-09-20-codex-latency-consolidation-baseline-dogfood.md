@@ -106,4 +106,3 @@ Show cached-value and coverage limits next to evidence, not only in documentatio
 Ready for review at http://127.0.0.1:5287/analyst.html. Local production release: 20260920-collaborative-review-r9. This is a loopback deployment, not public hosting. Earlier listeners remain running; use this URL for the corrected release.
 
 Evidence: final test logs, browser screenshots, source hashes and synthetic API receipts are kept in the Windows temporary directory, not committed with client data. The 78-sheet browser traversal tested A1:L25 on every sheet plus a separate populated next-page range; it does not prove every cell or calculation in the model. Full-model editing and recalculation remain in Excel. TabFM was evaluated but not integrated; TypeSafe is integrated as optional approach selection, while classification/scoring answers come from the agent.
-
